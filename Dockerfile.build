@@ -1,0 +1,15 @@
+FROM node:20-slim
+
+# electron-builder needs these for packaging
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    rpm \
+    fakeroot \
+    dpkg \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+COPY package.json .
+RUN npm install
+
+COPY . .
+RUN npm run build:linux

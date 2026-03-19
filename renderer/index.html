@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' http://10.201.52.171:8200; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+<title>STT Popup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 420px;
+    height: 560px;
+    overflow: hidden;
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #e2e8f0;
+    user-select: none;
+  }
+
+  .popup {
+    width: 420px;
+    height: 560px;
+    background: rgba(15, 17, 30, 0.97);
+    border: 1px solid rgba(124, 58, 237, 0.4);
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04);
+    overflow: hidden;
+  }
+
+  /* ── Title bar (drag region) ── */
+  .titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    height: 40px;
+    background: rgba(26, 29, 46, 0.95);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    -webkit-app-region: drag;
+    flex-shrink: 0;
+  }
+  .titlebar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #a78bfa;
+    -webkit-app-region: drag;
+  }
+  .titlebar-left svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .hint {
+    font-size: 0.7rem;
+    color: #4b5563;
+    font-weight: 400;
+    -webkit-app-region: drag;
+  }
+  .close-btn {
+    -webkit-app-region: no-drag;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: #4b5563;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.1s, color 0.1s;
+    padding: 0;
+  }
+  .close-btn:hover { background: rgba(239,68,68,0.15); color: #ef4444; }
+  .close-btn svg { width: 14px; height: 14px; }
+
+  /* ── Body ── */
+  .body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 14px;
+    gap: 10px;
+    overflow: hidden;
+  }
+
+  /* ── Record controls ── */
+  .controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  button {
+    border: none;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 14px;
+    transition: all 0.12s;
+    -webkit-app-region: no-drag;
+    user-select: none;
+  }
+  button:disabled { opacity: 0.35; cursor: not-allowed; }
+  #recordBtn { background: #7c3aed; color: white; }
+  #recordBtn:hover:not(:disabled) { background: #6d28d9; }
+  #recordBtn.recording { background: #dc2626; animation: pulse 1.5s infinite; }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.5); }
+    50%      { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
+  }
+  #stopBtn { background: #1f2937; color: #9ca3af; }
+  #stopBtn:hover:not(:disabled) { background: #374151; color: #e2e8f0; }
+
+  .meter-wrap {
+    flex: 1;
+    height: 6px;
+    background: #1f2937;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  #meter {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #7c3aed, #c4b5fd);
+    border-radius: 3px;
+    transition: width 0.04s;
+  }
+
+  /* ── Silence slider ── */
+  .silence-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .silence-row label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #4b5563;
+    white-space: nowrap;
+    margin-bottom: 0;
+    display: inline;
+  }
+  input[type="range"] {
+    flex: 1;
+    accent-color: #7c3aed;
+    cursor: pointer;
+    height: 4px;
+    -webkit-app-region: no-drag;
+  }
+  .silence-val {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #a78bfa;
+    white-space: nowrap;
+    min-width: 32px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Text areas ── */
+  label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #4b5563;
+    margin-bottom: 2px;
+    display: block;
+  }
+  .field { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  textarea {
+    flex: 1;
+    background: #0d1018;
+    border: 1px solid #1f2937;
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    padding: 10px 12px;
+    resize: none;
+    font-family: inherit;
+    min-height: 0;
+    -webkit-app-region: no-drag;
+  }
+  textarea:focus { outline: none; border-color: #7c3aed; }
+
+  .fields {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* ── Bottom row ── */
+  .bottom-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  select {
+    background: #0d1018;
+    border: 1px solid #1f2937;
+    border-radius: 7px;
+    color: #9ca3af;
+    font-size: 0.75rem;
+    padding: 6px 8px;
+    flex: 1;
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+  }
+  select:focus { outline: none; border-color: #7c3aed; }
+  #enhanceBtn {
+    background: #064e3b;
+    color: #6ee7b7;
+    font-size: 0.78rem;
+    white-space: nowrap;
+    padding: 7px 12px;
+    flex-shrink: 0;
+  }
+  #enhanceBtn:hover:not(:disabled) { background: #065f46; }
+  .copy-btn {
+    background: #1f2937;
+    color: #6b7280;
+    font-size: 0.72rem;
+    padding: 5px 9px;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+  .copy-btn:hover:not(:disabled) { background: #374151; color: #e2e8f0; }
+
+  /* ── Status ── */
+  .status {
+    font-size: 0.72rem;
+    color: #4b5563;
+    padding: 4px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    min-height: 18px;
+  }
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: #374151;
+  }
+  .dot.ready { background: #10b981; }
+  .dot.busy  { background: #f59e0b; animation: blink 0.8s infinite; }
+  .dot.error { background: #ef4444; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .spinner {
+    width: 10px; height: 10px; flex-shrink: 0;
+    border: 1.5px solid #374151;
+    border-top-color: #a78bfa;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="popup">
+
+  <!-- Title bar -->
+  <div class="titlebar">
+    <div class="titlebar-left">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+        <line x1="8" y1="23" x2="16" y2="23"/>
+      </svg>
+      Speech to Text
+      <span class="hint">Ctrl+Shift+Space to hide</span>
+    </div>
+    <button class="close-btn" id="closeBtn" title="Hide to tray">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Body -->
+  <div class="body">
+
+    <!-- Record controls -->
+    <div class="controls">
+      <button id="recordBtn">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg>
+        Record
+      </button>
+      <button id="stopBtn" disabled>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+        Stop
+      </button>
+      <div class="meter-wrap"><div id="meter"></div></div>
+    </div>
+
+    <!-- Silence timeout slider -->
+    <div class="silence-row">
+      <label for="silenceSlider">Silence</label>
+      <input type="range" id="silenceSlider" min="0" max="100" value="0">
+      <span class="silence-val" id="silenceVal">1.8s</span>
+    </div>
+
+    <!-- Text areas -->
+    <div class="fields">
+      <div class="field">
+        <label>Transcription</label>
+        <textarea id="transcription" placeholder="Click Record and start speaking..."></textarea>
+      </div>
+      <div class="field">
+        <label>Enhanced</label>
+        <textarea id="enhanced" placeholder="Click Enhance with AI..."></textarea>
+      </div>
+    </div>
+
+    <!-- Bottom row: model picker + enhance + copy -->
+    <div class="bottom-row">
+      <select id="modelSelect">
+        <option value="mistral-nemo:latest">mistral-nemo</option>
+        <option value="llama3.1:latest">llama3.1</option>
+      </select>
+      <button id="enhanceBtn" disabled>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+        Enhance
+      </button>
+      <button class="copy-btn" id="copyRaw">Copy</button>
+      <button class="copy-btn" id="copyEnh">Copy AI</button>
+    </div>
+
+    <!-- Status -->
+    <div class="status">
+      <div class="dot ready" id="statusDot"></div>
+      <span id="statusText">Ready</span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = 'http://10.201.52.171:8200';
+
+const recordBtn      = document.getElementById('recordBtn');
+const stopBtn        = document.getElementById('stopBtn');
+const enhanceBtn     = document.getElementById('enhanceBtn');
+const meter          = document.getElementById('meter');
+const transcription  = document.getElementById('transcription');
+const enhanced       = document.getElementById('enhanced');
+const modelSelect    = document.getElementById('modelSelect');
+const statusDot      = document.getElementById('statusDot');
+const statusText     = document.getElementById('statusText');
+
+let mediaRecorder = null;
+let audioChunks = [];
+let audioCtx = null;
+let analyser = null;
+let meterRAF = null;
+let stream = null;
+
+// ── Status helpers ────────────────────────────────────────────────────────────
+function setStatus(msg, type) {
+  type = type || 'ready';
+  statusText.textContent = msg;
+
+  const existing = document.getElementById('statusDot') || document.getElementById('spinner');
+  if (!existing) return;
+
+  if (type === 'busy') {
+    const s = document.createElement('div');
+    s.className = 'spinner';
+    s.id = 'spinner';
+    existing.replaceWith(s);
+  } else {
+    if (existing.id === 'spinner') {
+      const d = document.createElement('div');
+      d.className = 'dot ' + type;
+      d.id = 'statusDot';
+      existing.replaceWith(d);
+    } else {
+      existing.className = 'dot ' + type;
+    }
+  }
+}
+
+// ── Audio level meter ─────────────────────────────────────────────────────────
+function updateMeter() {
+  if (!analyser) return;
+  const data = new Float32Array(analyser.fftSize);
+  analyser.getFloatTimeDomainData(data);
+  const rms = Math.sqrt(data.reduce(function(s,v){ return s+v*v; }, 0) / data.length);
+  const pct = Math.max(0, Math.min(100, (20*Math.log10(Math.max(rms,1e-10)) + 60) / 60 * 100));
+  meter.style.width = pct + '%';
+  meterRAF = requestAnimationFrame(updateMeter);
+}
+
+// ── Recording ─────────────────────────────────────────────────────────────────
+async function startRecording() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  } catch (e) {
+    setStatus('Mic denied: ' + e.message, 'error');
+    return;
+  }
+
+  audioCtx = new AudioContext();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  audioCtx.createMediaStreamSource(stream).connect(analyser);
+  meterRAF = requestAnimationFrame(updateMeter);
+
+  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+    ? 'audio/webm;codecs=opus' : 'audio/webm';
+
+  audioChunks = [];
+  mediaRecorder = new MediaRecorder(stream, { mimeType });
+  mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) audioChunks.push(e.data); };
+  mediaRecorder.onstop = handleStop;
+  mediaRecorder.start(100);
+
+  recordBtn.disabled = true;
+  recordBtn.classList.add('recording');
+  stopBtn.disabled = false;
+  setStatus('Recording...', 'busy');
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  if (stream) { stream.getTracks().forEach(function(t){ t.stop(); }); stream = null; }
+  if (meterRAF) { cancelAnimationFrame(meterRAF); meterRAF = null; }
+  if (audioCtx) { audioCtx.close(); audioCtx = null; analyser = null; }
+  meter.style.width = '0%';
+  recordBtn.disabled = false;
+  recordBtn.classList.remove('recording');
+  stopBtn.disabled = true;
+}
+
+async function handleStop() {
+  const blob = new Blob(audioChunks, { type: 'audio/webm' });
+  if (blob.size < 500) { setStatus('Too short', 'error'); return; }
+
+  setStatus('Transcribing...', 'busy');
+  const form = new FormData();
+  form.append('audio', blob, 'recording.webm');
+
+  try {
+    const res = await fetch(API + '/transcribe', { method: 'POST', body: form });
+    if (!res.ok) throw new Error((await res.json().catch(function(){return{};})).detail || res.statusText);
+    const data = await res.json();
+    transcription.value = data.text || '';
+    const lang = data.language ? '  ' + data.language.toUpperCase() : '';
+    const dur  = data.duration  ? '  ' + data.duration + 's' : '';
+    setStatus('Done' + lang + dur, 'ready');
+    enhanceBtn.disabled = !data.text;
+  } catch (e) {
+    setStatus('Error: ' + e.message, 'error');
+  }
+}
+
+// ── Enhance ───────────────────────────────────────────────────────────────────
+async function enhanceText() {
+  const text = transcription.value.trim();
+  if (!text) return;
+  enhanceBtn.disabled = true;
+  setStatus('Enhancing...', 'busy');
+  try {
+    const res = await fetch(API + '/enhance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, model: modelSelect.value }),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(function(){return{};})).detail || res.statusText);
+    enhanced.value = (await res.json()).enhanced_text || '';
+    setStatus('Enhanced', 'ready');
+  } catch (e) {
+    setStatus('Error: ' + e.message, 'error');
+  } finally {
+    enhanceBtn.disabled = false;
+  }
+}
+
+// ── Model list ────────────────────────────────────────────────────────────────
+async function loadModels() {
+  try {
+    const data = await fetch(API + '/models').then(function(r){ return r.json(); });
+    if (data.models && data.models.length) {
+      modelSelect.innerHTML = '';
+      data.models.forEach(function(m) {
+        const o = document.createElement('option');
+        o.value = m; o.textContent = m;
+        modelSelect.appendChild(o);
+      });
+    }
+  } catch (_) {}
+}
+
+// ── Copy ──────────────────────────────────────────────────────────────────────
+document.getElementById('copyRaw').addEventListener('click', function() {
+  if (transcription.value) navigator.clipboard.writeText(transcription.value)
+    .then(function(){ setStatus('Copied', 'ready'); });
+});
+document.getElementById('copyEnh').addEventListener('click', function() {
+  if (enhanced.value) navigator.clipboard.writeText(enhanced.value)
+    .then(function(){ setStatus('Copied (AI)', 'ready'); });
+});
+
+// ── Window controls ───────────────────────────────────────────────────────────
+document.getElementById('closeBtn').addEventListener('click', function() {
+  if (window.electronAPI) window.electronAPI.hideWindow();
+});
+
+// ── Wire up buttons ───────────────────────────────────────────────────────────
+recordBtn.addEventListener('click', startRecording);
+stopBtn.addEventListener('click', stopRecording);
+enhanceBtn.addEventListener('click', enhanceText);
+
+loadModels();
+
+// ── Silence timeout slider ────────────────────────────────────────────────────
+const silenceSlider = document.getElementById('silenceSlider');
+const silenceVal    = document.getElementById('silenceVal');
+
+// Logarithmic mapping: slider 0–99 → 1800ms–30000ms, slider 100 → Infinity
+function sliderToMs(v) {
+  if (v >= 100) return Infinity;
+  return Math.round(1800 * Math.pow(30000 / 1800, v / 99));
+}
+function msToLabel(ms) {
+  if (!isFinite(ms)) return '∞';
+  if (ms < 10000) return (ms / 1000).toFixed(1) + 's';
+  return Math.round(ms / 1000) + 's';
+}
+
+// Restore saved value
+const savedSilence = parseInt(localStorage.getItem('silenceSlider') || '0', 10);
+silenceSlider.value = savedSilence;
+silenceVal.textContent = msToLabel(sliderToMs(savedSilence));
+
+// Send initial value to indicator on load
+if (window.electronAPI && window.electronAPI.setSilence) {
+  window.electronAPI.setSilence(sliderToMs(savedSilence));
+}
+
+silenceSlider.addEventListener('input', function () {
+  const ms = sliderToMs(parseInt(this.value, 10));
+  silenceVal.textContent = msToLabel(ms);
+  localStorage.setItem('silenceSlider', this.value);
+  if (window.electronAPI && window.electronAPI.setSilence) {
+    window.electronAPI.setSilence(ms);
+  }
+});
+
+// ── Receive transcription injected from Ctrl+Space quick-record ───────────────
+if (window.electronAPI && window.electronAPI.onInjectText) {
+  window.electronAPI.onInjectText(function(text) {
+    transcription.value = text;
+    enhanced.value = '';
+    enhanceBtn.disabled = !text;
+    setStatus('Received from quick-record', 'ready');
+  });
+}
+</script>
+</body>
+</html>

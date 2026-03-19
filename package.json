@@ -1,0 +1,32 @@
+{
+  "name": "stt-popup",
+  "version": "1.0.0",
+  "description": "Floating speech-to-text popup using Whisper + Ollama",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:linux": "electron-builder --linux AppImage",
+    "build:win": "electron-builder --win portable",
+    "build:mac": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.homelab.stt-popup",
+    "productName": "STT Popup",
+    "directories": {
+      "output": "dist"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Utility"
+    },
+    "win": {
+      "target": "portable",
+      "sign": false,
+      "signDlls": false
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.4.0",
+    "electron-builder": "^25.1.8"
+  }
+}
