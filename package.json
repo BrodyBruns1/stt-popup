@@ -1,6 +1,6 @@
 {
   "name": "stt-popup",
-  "version": "1.0.0",
+  "version": "1.4.4",
   "description": "Floating speech-to-text popup using Whisper + Ollama",
   "main": "main.js",
   "scripts": {

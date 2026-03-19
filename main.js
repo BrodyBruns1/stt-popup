@@ -9,10 +9,15 @@ const os   = require('os');
 
 // ── wscript VBS helper for fast paste (~40ms vs ~400ms for PowerShell) ────────
 const VBS_PATH = path.join(os.tmpdir(), 'stt-popup-paste.vbs');
-function ensurePasteHelper() {
+const VBS_ENTER_PATH = path.join(os.tmpdir(), 'stt-popup-paste-enter.vbs');
+function ensurePasteHelpers() {
   try {
     fs.writeFileSync(VBS_PATH,
       'Set s=CreateObject("WScript.Shell"):WScript.Sleep 100:s.SendKeys "^v"\n',
+      'utf8'
+    );
+    fs.writeFileSync(VBS_ENTER_PATH,
+      'Set s=CreateObject("WScript.Shell"):WScript.Sleep 100:s.SendKeys "^v~"\n',
       'utf8'
     );
   } catch (_) {}
@@ -22,6 +27,19 @@ let indicatorWin = null;
 let fullWin      = null;
 let tray         = null;
 let isRecording  = false;
+let wakeModeEnabled = false;
+let autoPressEnter = false;
+let wakePhrase = 'Hey Jenkins';
+const QUICK_PASTE_DELAY_MS = 650;
+let pendingQuickPasteTimer = null;
+let pendingQuickPasteText = '';
+
+function sanitizeWakePhrase(value) {
+  const normalized = String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return normalized || 'Hey Jenkins';
+}
 
 // ── Tray icon ────────────────────────────────────────────────────────────────
 function makeTrayIcon() {
@@ -67,20 +85,16 @@ function createIndicatorWindow() {
 
 // ── Full window (shown only via Ctrl+Shift+Space) ────────────────────────────
 function createFullWindow() {
-  const { workArea } = screen.getPrimaryDisplay();
-
   fullWin = new BrowserWindow({
     width:  420,
     height: 560,
-    x: workArea.x + workArea.width  - 432,
-    y: workArea.y + workArea.height - 572,
+    show:        false,
     frame:       false,
     transparent: true,
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable:   false,
     movable:     true,
-    show:        false,
     webPreferences: {
       preload:          path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -91,20 +105,91 @@ function createFullWindow() {
   fullWin.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 }
 
+function positionFullWindowRelativeToIndicator() {
+  if (!indicatorWin || !fullWin) return;
+
+  const [indicatorX, indicatorY] = indicatorWin.getPosition();
+  const [indicatorWidth, indicatorHeight] = indicatorWin.getSize();
+  const [fullWidth, fullHeight] = fullWin.getSize();
+  const display = screen.getDisplayNearestPoint({ x: indicatorX, y: indicatorY });
+  const { x: areaX, y: areaY, width: areaWidth, height: areaHeight } = display.workArea;
+
+  let targetX = indicatorX + indicatorWidth - fullWidth;
+  let targetY = indicatorY + indicatorHeight - 6;
+
+  const maxX = areaX + areaWidth - fullWidth - 12;
+  const maxY = areaY + areaHeight - fullHeight - 12;
+
+  targetX = Math.max(areaX + 12, Math.min(targetX, maxX));
+
+  if (targetY > maxY) {
+    targetY = indicatorY - fullHeight + 6;
+  }
+  targetY = Math.max(areaY + 12, Math.min(targetY, maxY));
+
+  fullWin.setPosition(Math.round(targetX), Math.round(targetY), false);
+}
+
+function showFullWindowAttached({ focus = false } = {}) {
+  if (!fullWin) return;
+  positionFullWindowRelativeToIndicator();
+
+  if (fullWin.isVisible()) {
+    if (focus) fullWin.focus();
+  } else if (focus) {
+    fullWin.show();
+    fullWin.focus();
+  } else {
+    fullWin.showInactive();
+  }
+
+  if (indicatorWin) indicatorWin.webContents.send('set-draggable', fullWin.isVisible());
+}
+
+function hideFullWindow() {
+  if (!fullWin) return;
+  fullWin.hide();
+  if (indicatorWin) indicatorWin.webContents.send('set-draggable', false);
+}
+
+function sendQuickSessionState(stage) {
+  if (!fullWin) return;
+  fullWin.webContents.send('quick-session-state', { stage });
+}
+
+function clearPendingQuickPaste() {
+  if (pendingQuickPasteTimer) {
+    clearTimeout(pendingQuickPasteTimer);
+    pendingQuickPasteTimer = null;
+  }
+  pendingQuickPasteText = '';
+}
+
+function finishQuickPreview({ pasteNow = false } = {}) {
+  const text = pendingQuickPasteText;
+  clearPendingQuickPaste();
+  if (pasteNow && text) {
+    injectTextAtCursor(text);
+  }
+  sendQuickSessionState(pasteNow ? 'pasted' : 'idle');
+  hideFullWindow();
+}
+
 // ── Text injection (wscript VBS — ~40ms vs ~400ms for PowerShell) ────────────
 function injectTextAtCursor(text) {
   const prev = clipboard.readText();
   clipboard.writeText(text);
-  ensurePasteHelper();
+  ensurePasteHelpers();
+  const scriptPath = autoPressEnter ? VBS_ENTER_PATH : VBS_PATH;
   // wscript sends Ctrl+V to whatever window currently has focus (we never stole it)
-  exec(`wscript //nologo "${VBS_PATH}"`, () => {
+  exec(`wscript //nologo "${scriptPath}"`, () => {
     setTimeout(() => clipboard.writeText(prev), 800);
   });
 }
 
 // ── App bootstrap ────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
-  ensurePasteHelper(); // write VBS helper to temp dir on startup
+  ensurePasteHelpers(); // write VBS helpers to temp dir on startup
 
   // Auto-grant microphone permission so the non-focusable indicator can record
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => {
@@ -116,14 +201,18 @@ app.whenReady().then(() => {
 
   createIndicatorWindow();
   createFullWindow();
+  positionFullWindowRelativeToIndicator();
 
   // ── Ctrl+Space: toggle recording, zero focus disruption ──────────────────
   const ok1 = globalShortcut.register('Control+Space', () => {
     if (!isRecording) {
       isRecording = true;
+      showFullWindowAttached({ focus: false });
+      sendQuickSessionState('recording');
       indicatorWin.webContents.send('cmd-start');
     } else {
       isRecording = false;
+      sendQuickSessionState('finalizing');
       indicatorWin.webContents.send('cmd-stop');
     }
   });
@@ -132,12 +221,9 @@ app.whenReady().then(() => {
   // ── Ctrl+Shift+Space: show/hide full window with AI enhancement ───────────
   const ok2 = globalShortcut.register('Control+Shift+Space', () => {
     if (fullWin.isVisible()) {
-      fullWin.hide();
-      indicatorWin.webContents.send('set-draggable', false);
+      hideFullWindow();
     } else {
-      fullWin.show();
-      fullWin.focus();
-      indicatorWin.webContents.send('set-draggable', true);
+      showFullWindowAttached({ focus: true });
     }
   });
   if (!ok2) console.warn('Could not register Ctrl+Shift+Space');
@@ -147,14 +233,14 @@ app.whenReady().then(() => {
   tray = new Tray(icon);
   tray.setToolTip('STT  |  Ctrl+Space = record & inject  |  Ctrl+Shift+Space = full window');
   tray.on('click', () => {
-    if (fullWin.isVisible()) fullWin.hide();
-    else { fullWin.show(); fullWin.focus(); }
+    if (fullWin.isVisible()) hideFullWindow();
+    else showFullWindowAttached({ focus: true });
   });
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Ctrl+Space          — Record & inject',   enabled: false },
     { label: 'Ctrl+Shift+Space  — Full window + AI',    enabled: false },
     { type: 'separator' },
-    { label: 'Show full window',  click: () => { fullWin.show(); fullWin.focus(); } },
+    { label: 'Show full window',  click: () => showFullWindowAttached({ focus: true }) },
     { label: 'Quit',              click: () => app.quit() },
   ]));
 });
@@ -162,17 +248,37 @@ app.whenReady().then(() => {
 // ── IPC from indicator: transcription finished ────────────────────────────────
 ipcMain.on('transcription-ready', (_, text) => {
   isRecording = false;
-  injectTextAtCursor(text);
-  // Also send to full window so user can see it if they open it later
+  clearPendingQuickPaste();
+  showFullWindowAttached({ focus: false });
+  sendQuickSessionState('preview');
   if (fullWin) fullWin.webContents.send('inject-text', text);
+  pendingQuickPasteText = text;
+  pendingQuickPasteTimer = setTimeout(() => finishQuickPreview({ pasteNow: true }), QUICK_PASTE_DELAY_MS);
+});
+
+ipcMain.on('transcription-live', (_, payload) => {
+  if (payload && payload.partial) {
+    showFullWindowAttached({ focus: false });
+    sendQuickSessionState('recording');
+  }
+  if (fullWin) fullWin.webContents.send('live-text', payload);
+});
+
+ipcMain.on('wake-activated', () => {
+  showFullWindowAttached({ focus: false });
+  sendQuickSessionState('recording');
 });
 
 ipcMain.on('transcription-error', () => {
   isRecording = false;
+  clearPendingQuickPaste();
+  sendQuickSessionState('error');
 });
 
 ipcMain.on('recording-stopped', () => {
   isRecording = false;
+  clearPendingQuickPaste();
+  sendQuickSessionState('idle');
 });
 
 // ── IPC: silence setting from full window → forwarded to indicator ────────────
@@ -185,6 +291,10 @@ ipcMain.on('drag-indicator', (_, { dx, dy }) => {
   if (!indicatorWin) return;
   const [x, y] = indicatorWin.getPosition();
   indicatorWin.setPosition(x + dx, y + dy);
+  if (fullWin && fullWin.isVisible()) {
+    const [fullX, fullY] = fullWin.getPosition();
+    fullWin.setPosition(fullX + dx, fullY + dy);
+  }
 });
 
 // ── IPC: full window tells indicator whether it's draggable ──────────────────
@@ -192,8 +302,27 @@ ipcMain.on('set-indicator-draggable', (_, v) => {
   if (indicatorWin) indicatorWin.webContents.send('set-draggable', v);
 });
 
+ipcMain.on('set-wake-mode', (_, enabled) => {
+  wakeModeEnabled = !!enabled;
+  if (indicatorWin) indicatorWin.webContents.send('set-wake-mode', wakeModeEnabled);
+  if (fullWin) fullWin.webContents.send('wake-mode-state', { enabled: wakeModeEnabled });
+});
+
+ipcMain.on('set-wake-phrase', (_, phrase) => {
+  wakePhrase = sanitizeWakePhrase(phrase);
+  if (indicatorWin) indicatorWin.webContents.send('set-wake-phrase', wakePhrase);
+  if (fullWin) fullWin.webContents.send('wake-phrase-state', { phrase: wakePhrase });
+});
+
+ipcMain.on('set-auto-enter', (_, enabled) => {
+  autoPressEnter = !!enabled;
+  if (fullWin) fullWin.webContents.send('auto-enter-state', { enabled: autoPressEnter });
+});
+
 // ── IPC from full window ──────────────────────────────────────────────────────
-ipcMain.on('hide-window', () => { if (fullWin) fullWin.hide(); });
+ipcMain.on('hide-window', () => hideFullWindow());
+ipcMain.on('dismiss-preview', () => finishQuickPreview({ pasteNow: !!pendingQuickPasteText }));
+ipcMain.on('quit-app', () => app.quit());
 
 ipcMain.on('drag-move', (_, { dx, dy }) => {
   if (!fullWin) return;

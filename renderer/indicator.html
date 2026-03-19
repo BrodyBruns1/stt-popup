@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy"
-  content="default-src 'self' http://10.201.52.171:8200; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+  content="default-src 'self'; connect-src 'self' http://10.201.52.171:8200 ws://10.201.52.171:8200; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -27,10 +27,9 @@
     gap: 9px;
     padding: 0 16px;
     transition: background 0.18s, border-color 0.18s, opacity 0.18s;
-    opacity: 0.45;           /* subtle when idle */
+    opacity: 0.45;
   }
 
-  /* ── States ── */
   .pill.recording {
     background: rgba(28, 6, 6, 0.95);
     border-color: rgba(239, 68, 68, 0.7);
@@ -42,6 +41,12 @@
     border-color: rgba(124, 58, 237, 0.7);
     opacity: 1;
     box-shadow: 0 0 14px rgba(124, 58, 237, 0.25), 0 2px 12px rgba(0,0,0,0.6);
+  }
+  .pill.wake {
+    background: rgba(7, 17, 28, 0.92);
+    border-color: rgba(96, 165, 250, 0.52);
+    opacity: 0.95;
+    box-shadow: 0 0 14px rgba(96, 165, 250, 0.18), 0 2px 12px rgba(0,0,0,0.55);
   }
   .pill.done {
     background: rgba(4, 24, 14, 0.95);
@@ -55,7 +60,6 @@
     opacity: 1;
   }
 
-  /* ── Label ── */
   .lbl {
     font-size: 0.71rem;
     font-weight: 600;
@@ -66,13 +70,14 @@
   }
   .recording .lbl  { color: #fca5a5; }
   .processing .lbl { color: #c4b5fd; }
+  .wake .lbl       { color: #93c5fd; }
   .done .lbl       { color: #6ee7b7; }
   .error .lbl      { color: #f87171; }
 
-  /* ── Icons / indicators ── */
   .icon-mic { color: #374151; flex-shrink: 0; }
   .pill.recording  .icon-mic { display: none; }
   .pill.processing .icon-mic { display: none; }
+  .pill.wake       .icon-mic { display: none; }
   .pill.done       .icon-mic { display: none; }
   .pill.error      .icon-mic { display: none; }
 
@@ -86,8 +91,8 @@
   }
   .recording .rec-dot { display: block; }
   @keyframes rec-pulse {
-    0%, 100% { transform: scale(1);   opacity: 1;   }
-    50%       { transform: scale(1.4); opacity: 0.6; }
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.6; }
   }
 
   .spinner {
@@ -100,6 +105,12 @@
     display: none;
   }
   .processing .spinner { display: block; }
+  .wake .spinner {
+    display: block;
+    border-color: rgba(96, 165, 250, 0.25);
+    border-top-color: #93c5fd;
+    animation-duration: 1.2s;
+  }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   .icon-check { color: #10b981; flex-shrink: 0; display: none; }
@@ -108,7 +119,6 @@
   .icon-x { color: #ef4444; flex-shrink: 0; display: none; }
   .error .icon-x { display: block; }
 
-  /* ── Audio level bar (shown only during recording) ── */
   .level-bar {
     position: absolute;
     bottom: 0;
@@ -132,209 +142,585 @@
 </head>
 <body>
 <div class="pill" id="pill">
-  <!-- Idle -->
   <svg class="icon-mic" width="13" height="13" viewBox="0 0 24 24"
        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
     <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
     <line x1="12" y1="19" x2="12" y2="23"/>
-    <line x1="8"  y1="23" x2="16" y2="23"/>
+    <line x1="8" y1="23" x2="16" y2="23"/>
   </svg>
-
-  <!-- Recording -->
   <div class="rec-dot"></div>
-
-  <!-- Processing -->
   <div class="spinner"></div>
-
-  <!-- Done -->
   <svg class="icon-check" width="13" height="13" viewBox="0 0 24 24"
        fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
     <polyline points="20 6 9 17 4 12"/>
   </svg>
-
-  <!-- Error -->
   <svg class="icon-x" width="12" height="12" viewBox="0 0 24 24"
        fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
     <line x1="18" y1="6" x2="6" y2="18"/>
-    <line x1="6"  y1="6" x2="18" y2="18"/>
+    <line x1="6" y1="6" x2="18" y2="18"/>
   </svg>
-
   <span class="lbl" id="lbl">STT</span>
-
   <div class="level-bar"><div class="level-fill" id="levelFill"></div></div>
 </div>
 
 <script>
-const API       = 'http://10.201.52.171:8200';
-const pill      = document.getElementById('pill');
-const lbl       = document.getElementById('lbl');
+const WS_API = 'ws://10.201.52.171:8200/ws/transcribe';
+const pill = document.getElementById('pill');
+const lbl = document.getElementById('lbl');
 const levelFill = document.getElementById('levelFill');
 
-// ── State ─────────────────────────────────────────────────────────────────────
-let mediaRecorder   = null;
-let audioChunks     = [];
-let audioCtx        = null;
-let analyser        = null;
-let meterRAF        = null;
-let stream          = null;
-let silenceTimer    = null;
-let recordStart     = 0;
-let currentState    = 'idle';
+let audioCtx = null;
+let analyser = null;
+let processor = null;
+let mutedGain = null;
+let source = null;
+let meterRAF = null;
+let stream = null;
+let ws = null;
+let pendingFrames = [];
+let liveDraft = '';
+let activeLanguage = 'en';
+let currentState = 'idle';
+let silenceTimer = null;
+let recordStart = 0;
+let draggable = false;
+let dragOriginX = 0;
+let dragOriginY = 0;
+let wakeModeEnabled = false;
+let wakeReconnectTimer = null;
+let wakePhrase = 'Hey Jenkins';
+let wakeRecentTranscripts = [];
+let finalizeStopTimer = null;
 
-const SILENCE_GRACE = 1100;   // ms — don't auto-stop in first second
-let   SILENCE_DELAY = 1800;   // ms of silence → auto-stop (overridable via IPC)
-const SILENCE_RMS   = 0.009;  // RMS threshold
+const WAKE_PARTIAL_INTERVAL_MS = 550;
+const WAKE_ROTATE_MS = 5200;
+const WAKE_HISTORY_MS = 6500;
+const FINALIZE_GRACE_MS = 260;
+const WAKE_TOKEN_ALIASES = {
+  hey: ['hay', 'hi', 'he'],
+  jenkins: ['jenkin', 'jenkens', 'jenkis', 'jinkins', 'genkins'],
+};
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function setState(s, text) {
-  currentState = s;
-  pill.className = 'pill' + (s && s !== 'idle' ? ' ' + s : '');
+const SILENCE_GRACE = 1100;
+let SILENCE_DELAY = 1800;
+const SILENCE_RMS = 0.009;
+
+function sanitizeWakePhrase(value) {
+  const normalized = String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return normalized || 'Hey Jenkins';
+}
+
+function wakePromptText() {
+  return `Say "${wakePhrase}"`;
+}
+
+function clearFinalizeStopTimer() {
+  if (finalizeStopTimer) {
+    clearTimeout(finalizeStopTimer);
+    finalizeStopTimer = null;
+  }
+}
+
+function normalizeWakeText(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[\u2018\u2019']/g, '')
+    .replace(/[^a-z0-9\s]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function wakeTokens(text) {
+  return normalizeWakeText(text).split(' ').filter(Boolean);
+}
+
+function tokenEditDistance(a, b) {
+  if (a === b) return 0;
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  const dp = Array.from({ length: rows }, (_, row) => Array(cols).fill(row === 0 ? 0 : row));
+  for (let col = 0; col < cols; col += 1) {
+    dp[0][col] = col;
+  }
+  for (let row = 1; row < rows; row += 1) {
+    for (let col = 1; col < cols; col += 1) {
+      const cost = a[row - 1] === b[col - 1] ? 0 : 1;
+      dp[row][col] = Math.min(
+        dp[row - 1][col] + 1,
+        dp[row][col - 1] + 1,
+        dp[row - 1][col - 1] + cost,
+      );
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+function wakeTokenMatches(candidate, target) {
+  if (candidate === target) return true;
+  const aliases = WAKE_TOKEN_ALIASES[target];
+  if (aliases && aliases.includes(candidate)) return true;
+  const maxLen = Math.max(candidate.length, target.length);
+  if (!maxLen) return false;
+  const distance = tokenEditDistance(candidate, target);
+  if (maxLen <= 3) return distance <= 1;
+  if (maxLen <= 4) return distance === 0;
+  if (maxLen <= 7) return distance <= 1;
+  return distance <= 2;
+}
+
+function heardWakePhrase(text) {
+  const phrase = wakeTokens(wakePhrase);
+  const heard = wakeTokens(text);
+  if (!phrase.length || !heard.length) return false;
+
+  let phraseIndex = 0;
+  for (const token of heard) {
+    if (wakeTokenMatches(token, phrase[phraseIndex])) {
+      phraseIndex += 1;
+      if (phraseIndex >= phrase.length) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function combinedWakeText(nextText) {
+  const now = Date.now();
+  if (nextText) {
+    wakeRecentTranscripts.push({ text: normalizeWakeText(nextText), at: now });
+  }
+  wakeRecentTranscripts = wakeRecentTranscripts.filter(entry => entry.text && now - entry.at <= WAKE_HISTORY_MS);
+  return wakeRecentTranscripts.map(entry => entry.text).join(' ').trim();
+}
+
+function setState(state, text) {
+  currentState = state;
+  pill.className = 'pill' + (state && state !== 'idle' ? ' ' + state : '');
   lbl.textContent = text;
 }
 
-// ── Audio monitor (level meter + silence detection) ───────────────────────────
+function floatTo16BitPCM(float32Array) {
+  const buffer = new ArrayBuffer(float32Array.length * 2);
+  const view = new DataView(buffer);
+  for (let i = 0; i < float32Array.length; i += 1) {
+    const sample = Math.max(-1, Math.min(1, float32Array[i]));
+    view.setInt16(i * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+  }
+  return buffer;
+}
+
+function sendAudioFrame(frame) {
+  if (!ws) return;
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(frame);
+    return;
+  }
+  if (ws.readyState === WebSocket.CONNECTING) {
+    pendingFrames.push(frame);
+  }
+}
+
 function monitorAudio() {
   if (!analyser) return;
   const data = new Float32Array(analyser.fftSize);
   analyser.getFloatTimeDomainData(data);
-  const rms = Math.sqrt(data.reduce((s, v) => s + v * v, 0) / data.length);
+  const rms = Math.sqrt(data.reduce((sum, value) => sum + value * value, 0) / data.length);
 
-  // Level bar
-  const pct = Math.max(0, Math.min(100,
-    (20 * Math.log10(Math.max(rms, 1e-10)) + 60) / 60 * 100));
-  levelFill.style.width = pct + '%';
+  if (currentState === 'recording') {
+    const pct = Math.max(0, Math.min(100, (20 * Math.log10(Math.max(rms, 1e-10)) + 60) / 60 * 100));
+    levelFill.style.width = pct + '%';
 
-  // Silence detection (after grace period; skipped when SILENCE_DELAY is Infinity)
-  if (isFinite(SILENCE_DELAY) && Date.now() - recordStart > SILENCE_GRACE) {
-    if (rms < SILENCE_RMS) {
-      if (!silenceTimer) silenceTimer = setTimeout(stopRecording, SILENCE_DELAY);
-    } else {
-      if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+    if (isFinite(SILENCE_DELAY) && Date.now() - recordStart > SILENCE_GRACE) {
+      if (rms < SILENCE_RMS) {
+        if (!silenceTimer) silenceTimer = setTimeout(stopRecording, SILENCE_DELAY);
+      } else if (silenceTimer) {
+        clearTimeout(silenceTimer);
+        silenceTimer = null;
+      }
     }
+  } else {
+    levelFill.style.width = '0%';
   }
 
   meterRAF = requestAnimationFrame(monitorAudio);
 }
 
-// ── Start recording ───────────────────────────────────────────────────────────
-async function startRecording() {
-  if (currentState === 'recording' || currentState === 'processing') return;
+function clearWakeReconnect() {
+  if (wakeReconnectTimer) {
+    clearTimeout(wakeReconnectTimer);
+    wakeReconnectTimer = null;
+  }
+}
+
+function scheduleWakeReconnect(delay) {
+  clearWakeReconnect();
+  wakeReconnectTimer = setTimeout(() => {
+    if (wakeModeEnabled && currentState === 'wake') {
+      openWakeSocket();
+    }
+  }, delay);
+}
+
+function closeSocket() {
+  if (ws) {
+    try {
+      ws.onclose = null;
+      ws.close();
+    } catch (_) {}
+    ws = null;
+  }
+  pendingFrames = [];
+}
+
+function clearAudioGraph() {
+  clearFinalizeStopTimer();
+  clearWakeReconnect();
+  if (meterRAF) {
+    cancelAnimationFrame(meterRAF);
+    meterRAF = null;
+  }
+  if (processor) {
+    processor.disconnect();
+    processor.onaudioprocess = null;
+    processor = null;
+  }
+  if (source) {
+    source.disconnect();
+    source = null;
+  }
+  if (mutedGain) {
+    mutedGain.disconnect();
+    mutedGain = null;
+  }
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+    stream = null;
+  }
+  if (audioCtx) {
+    audioCtx.close();
+    audioCtx = null;
+    analyser = null;
+  }
+  levelFill.style.width = '0%';
+}
+
+function clearAudioPipeline() {
+  closeSocket();
+  clearAudioGraph();
+}
+
+async function ensureAudioPipeline() {
+  if (audioCtx && processor && stream) return true;
 
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-  } catch (e) {
+  } catch (error) {
     setState('error', 'No mic');
-    setTimeout(() => setState('idle', 'STT'), 2500);
+    setTimeout(() => {
+      if (wakeModeEnabled) {
+        setState('wake', 'Wake mic blocked');
+      } else {
+        setState('idle', 'STT');
+      }
+    }, 2500);
     window.indicatorAPI.transcriptionError();
-    return;
+    return false;
   }
 
   audioCtx = new AudioContext();
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = 256;
-  audioCtx.createMediaStreamSource(stream).connect(analyser);
+  source = audioCtx.createMediaStreamSource(stream);
+  processor = audioCtx.createScriptProcessor(4096, 1, 1);
+  mutedGain = audioCtx.createGain();
+  mutedGain.gain.value = 0;
 
-  audioChunks  = [];
-  recordStart  = Date.now();
-  silenceTimer = null;
+  source.connect(analyser);
+  source.connect(processor);
+  processor.connect(mutedGain);
+  mutedGain.connect(audioCtx.destination);
 
-  const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-    ? 'audio/webm;codecs=opus' : 'audio/webm';
+  processor.onaudioprocess = event => {
+    const input = event.inputBuffer.getChannelData(0);
+    sendAudioFrame(floatTo16BitPCM(input));
+  };
 
-  mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
-  mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-  mediaRecorder.onstop = handleStop;
-  mediaRecorder.start(100);
+  if (!meterRAF) {
+    meterRAF = requestAnimationFrame(monitorAudio);
+  }
 
-  setState('recording', 'Recording');
-  meterRAF = requestAnimationFrame(monitorAudio);
+  return true;
 }
 
-// ── Stop recording ────────────────────────────────────────────────────────────
-function stopRecording() {
-  if (currentState !== 'recording') return;
-
-  if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
-  if (meterRAF)     { cancelAnimationFrame(meterRAF); meterRAF = null; }
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-  if (stream)       { stream.getTracks().forEach(t => t.stop()); stream = null; }
-  if (audioCtx)     { audioCtx.close(); audioCtx = null; analyser = null; }
-
-  levelFill.style.width = '0%';
-  setState('processing', 'Thinking…');
-}
-
-// ── Transcribe ────────────────────────────────────────────────────────────────
-async function handleStop() {
-  const blob = new Blob(audioChunks, { type: 'audio/webm' });
-  if (blob.size < 300) {
-    setState('idle', 'STT');
+function finishWithText(text, finalLanguage) {
+  const finalText = (text || liveDraft || '').trim();
+  clearFinalizeStopTimer();
+  clearAudioPipeline();
+  if (!finalText) {
+    if (wakeModeEnabled) {
+      setState('wake', wakePromptText());
+      setTimeout(() => startWakeMonitoring(), 450);
+    } else {
+      setState('idle', 'STT');
+    }
     window.indicatorAPI.recordingStopped();
     return;
   }
 
-  const form = new FormData();
-  form.append('audio', blob, 'rec.webm');
-
-  try {
-    const res  = await fetch(API + '/transcribe', { method: 'POST', body: form });
-    if (!res.ok) throw new Error(res.statusText);
-    const data = await res.json();
-    const text = (data.text || '').trim();
-
-    if (!text) {
+  setState('done', 'Injected ✓');
+  window.indicatorAPI.transcriptionLive({
+    text: finalText,
+    partial: false,
+    language: finalLanguage || activeLanguage,
+  });
+  window.indicatorAPI.transcriptionReady(finalText);
+  setTimeout(() => {
+    if (wakeModeEnabled) {
+      setState('wake', wakePromptText());
+      startWakeMonitoring();
+    } else {
       setState('idle', 'STT');
-      window.indicatorAPI.recordingStopped();
-      return;
     }
+  }, 2200);
+}
 
-    setState('done', 'Injected ✓');
-    window.indicatorAPI.transcriptionReady(text);
-    setTimeout(() => setState('idle', 'STT'), 2200);
+function activateFromWakeWord() {
+  clearWakeReconnect();
+  clearFinalizeStopTimer();
+  wakeRecentTranscripts = [];
+  clearAudioPipeline();
+  setState('processing', 'Activating');
+  window.indicatorAPI.wakeActivated();
+  setTimeout(() => startRecording(true), 140);
+}
 
-  } catch (e) {
-    setState('error', 'Error');
-    setTimeout(() => setState('idle', 'STT'), 2500);
-    window.indicatorAPI.transcriptionError();
+function openWakeSocket() {
+  closeSocket();
+  pendingFrames = [];
+
+  const wakeSocket = new WebSocket(WS_API);
+  ws = wakeSocket;
+  ws.binaryType = 'arraybuffer';
+
+  wakeSocket.addEventListener('open', () => {
+    wakeSocket.send(JSON.stringify({
+      type: 'start',
+      mode: 'wake',
+      wake_phrase: wakePhrase,
+      sample_rate: audioCtx ? audioCtx.sampleRate : 48000,
+      channels: 1,
+      language: 'en',
+      partial_interval_ms: WAKE_PARTIAL_INTERVAL_MS,
+    }));
+    while (pendingFrames.length > 0 && wakeSocket.readyState === WebSocket.OPEN) {
+      wakeSocket.send(pendingFrames.shift());
+    }
+    scheduleWakeReconnect(WAKE_ROTATE_MS);
+  });
+
+  wakeSocket.addEventListener('message', event => {
+    const payload = JSON.parse(event.data);
+    if (payload.type !== 'partial' && payload.type !== 'final') return;
+
+    const heard = payload.text || '';
+    const combined = combinedWakeText(heard);
+    if (heardWakePhrase(heard) || heardWakePhrase(combined)) {
+      activateFromWakeWord();
+    }
+  });
+
+  wakeSocket.addEventListener('close', () => {
+    if (ws === wakeSocket) {
+      ws = null;
+    }
+    if (wakeModeEnabled && currentState === 'wake') {
+      scheduleWakeReconnect(180);
+    }
+  });
+}
+
+async function startWakeMonitoring() {
+  if (!wakeModeEnabled || currentState === 'recording' || currentState === 'processing') return;
+  const ready = await ensureAudioPipeline();
+  if (!ready) return;
+  liveDraft = '';
+  activeLanguage = 'en';
+  wakeRecentTranscripts = [];
+  setState('wake', wakePromptText());
+  openWakeSocket();
+}
+
+function stopWakeMonitoring() {
+  clearWakeReconnect();
+  if (currentState === 'wake') {
+    closeSocket();
+    clearAudioPipeline();
+    setState('idle', 'STT');
   }
 }
 
-// ── IPC from main process ─────────────────────────────────────────────────────
-window.indicatorAPI.onStart(()     => startRecording());
-window.indicatorAPI.onStop(()      => stopRecording());
+async function startRecording(fromWake) {
+  if (currentState === 'recording') return;
+  if (currentState === 'processing' && !fromWake) return;
+
+  if (!fromWake && currentState === 'wake') {
+    clearAudioPipeline();
+  }
+
+  const ready = await ensureAudioPipeline();
+  if (!ready) return;
+
+  liveDraft = '';
+  activeLanguage = 'en';
+  pendingFrames = [];
+  wakeRecentTranscripts = [];
+  recordStart = Date.now();
+  silenceTimer = null;
+  clearFinalizeStopTimer();
+  clearWakeReconnect();
+  closeSocket();
+
+  ws = new WebSocket(WS_API);
+  ws.binaryType = 'arraybuffer';
+
+  ws.addEventListener('open', () => {
+    ws.send(JSON.stringify({
+      type: 'start',
+      mode: 'dictation',
+      sample_rate: audioCtx ? audioCtx.sampleRate : 48000,
+      channels: 1,
+      language: 'en',
+      partial_interval_ms: 800,
+    }));
+    while (pendingFrames.length > 0 && ws.readyState === WebSocket.OPEN) {
+      ws.send(pendingFrames.shift());
+    }
+  });
+
+  ws.addEventListener('message', event => {
+    const payload = JSON.parse(event.data);
+    if (payload.type === 'partial') {
+      liveDraft = payload.text || liveDraft;
+      activeLanguage = payload.language || activeLanguage;
+      const words = liveDraft ? liveDraft.trim().split(/\s+/).length : 0;
+      setState('recording', words > 0 ? 'Live ' + words + 'w' : 'Recording');
+      window.indicatorAPI.transcriptionLive({
+        text: liveDraft,
+        partial: true,
+        language: activeLanguage,
+      });
+      return;
+    }
+
+    if (payload.type === 'final') {
+      finishWithText(payload.text, payload.language);
+      if (ws) ws.close();
+      return;
+    }
+
+    if (payload.type === 'error') {
+      if (currentState === 'processing' && liveDraft) {
+        finishWithText(liveDraft, activeLanguage);
+        return;
+      }
+      clearAudioPipeline();
+      setState('error', 'Error');
+      setTimeout(() => setState('idle', 'STT'), 2500);
+      window.indicatorAPI.transcriptionError();
+    }
+  });
+
+  ws.addEventListener('close', () => {
+    ws = null;
+  });
+
+  setState('recording', 'Recording');
+}
+
+function stopRecording() {
+  if (currentState !== 'recording') return;
+
+  if (silenceTimer) {
+    clearTimeout(silenceTimer);
+    silenceTimer = null;
+  }
+
+  setState('processing', 'Finalizing');
+  clearFinalizeStopTimer();
+  finalizeStopTimer = setTimeout(() => {
+    clearAudioGraph();
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send('stop');
+      return;
+    }
+
+    if (liveDraft) {
+      finishWithText(liveDraft, activeLanguage);
+      return;
+    }
+
+    setState('error', 'Error');
+    setTimeout(() => setState('idle', 'STT'), 2500);
+    window.indicatorAPI.transcriptionError();
+  }, FINALIZE_GRACE_MS);
+}
+
+window.indicatorAPI.onStart(() => startRecording());
+window.indicatorAPI.onStop(() => stopRecording());
 window.indicatorAPI.onSetSilence(ms => {
-  SILENCE_DELAY = ms; // Infinity = manual-stop mode
-  if (!isFinite(ms) && silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+  SILENCE_DELAY = ms;
+  if (!isFinite(ms) && silenceTimer) {
+    clearTimeout(silenceTimer);
+    silenceTimer = null;
+  }
 });
 
-// ── Drag support (enabled only when full window is open) ─────────────────────
-let draggable   = false;
-let dragOriginX = 0;
-let dragOriginY = 0;
-
-window.indicatorAPI.onSetDraggable(v => {
-  draggable = v;
-  pill.style.cursor = v ? 'grab' : 'default';
+window.indicatorAPI.onSetWakeMode(enabled => {
+  wakeModeEnabled = !!enabled;
+  if (wakeModeEnabled) {
+    startWakeMonitoring();
+  } else {
+    stopWakeMonitoring();
+  }
 });
 
-pill.addEventListener('mousedown', e => {
+window.indicatorAPI.onSetWakePhrase(value => {
+  wakePhrase = sanitizeWakePhrase(value);
+  if (currentState === 'wake') {
+    setState('wake', wakePromptText());
+  }
+});
+
+window.indicatorAPI.onSetDraggable(value => {
+  draggable = value;
+  pill.style.cursor = value ? 'grab' : 'default';
+});
+
+pill.addEventListener('mousedown', event => {
   if (!draggable) return;
-  dragOriginX = e.screenX;
-  dragOriginY = e.screenY;
+  dragOriginX = event.screenX;
+  dragOriginY = event.screenY;
   pill.style.cursor = 'grabbing';
-  function onMove(ev) {
-    const dx = ev.screenX - dragOriginX;
-    const dy = ev.screenY - dragOriginY;
-    dragOriginX = ev.screenX;
-    dragOriginY = ev.screenY;
+
+  function onMove(moveEvent) {
+    const dx = moveEvent.screenX - dragOriginX;
+    const dy = moveEvent.screenY - dragOriginY;
+    dragOriginX = moveEvent.screenX;
+    dragOriginY = moveEvent.screenY;
     window.indicatorAPI.dragIndicator(dx, dy);
   }
+
   function onUp() {
     window.removeEventListener('mousemove', onMove);
     window.removeEventListener('mouseup', onUp);
     pill.style.cursor = 'grab';
   }
+
   window.addEventListener('mousemove', onMove);
   window.addEventListener('mouseup', onUp);
 });

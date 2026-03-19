@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' http://10.201.52.171:8200; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' http://10.201.52.171:8200 ws://10.201.52.171:8200; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
 <title>STT Popup</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -29,7 +29,6 @@
     overflow: hidden;
   }
 
-  /* ── Title bar (drag region) ── */
   .titlebar {
     display: flex;
     align-items: center;
@@ -57,8 +56,14 @@
     font-weight: 400;
     -webkit-app-region: drag;
   }
-  .close-btn {
+  .titlebar-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     -webkit-app-region: no-drag;
+  }
+  .toggle-btn,
+  .close-btn {
     width: 24px;
     height: 24px;
     border: none;
@@ -72,10 +77,11 @@
     transition: background 0.1s, color 0.1s;
     padding: 0;
   }
+  .toggle-btn:hover { background: rgba(124,58,237,0.16); color: #c4b5fd; }
   .close-btn:hover { background: rgba(239,68,68,0.15); color: #ef4444; }
+  .toggle-btn svg,
   .close-btn svg { width: 14px; height: 14px; }
 
-  /* ── Body ── */
   .body {
     flex: 1;
     display: flex;
@@ -85,7 +91,90 @@
     overflow: hidden;
   }
 
-  /* ── Record controls ── */
+  .settings-panel {
+    background: rgba(13, 16, 24, 0.92);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 10px;
+    padding: 0 12px;
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.16s ease, padding 0.16s ease, border-color 0.16s ease;
+    overflow: hidden;
+  }
+  .settings-panel.open {
+    grid-template-rows: 1fr;
+    padding: 12px;
+    border-color: rgba(124, 58, 237, 0.24);
+  }
+  .settings-inner {
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .toggle-field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 8px;
+  }
+  .toggle-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .toggle-copy strong {
+    font-size: 0.76rem;
+    color: #e2e8f0;
+  }
+  .toggle-copy span {
+    font-size: 0.68rem;
+    color: #64748b;
+    line-height: 1.35;
+  }
+  .switch {
+    position: relative;
+    width: 42px;
+    height: 24px;
+    flex-shrink: 0;
+  }
+  .switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .slider {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: #1f2937;
+    cursor: pointer;
+    transition: background 0.12s ease;
+  }
+  .slider::before {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    left: 3px;
+    top: 3px;
+    border-radius: 50%;
+    background: #cbd5e1;
+    transition: transform 0.12s ease;
+  }
+  .switch input:checked + .slider {
+    background: #2563eb;
+  }
+  .switch input:checked + .slider::before {
+    transform: translateX(18px);
+    background: white;
+  }
+
   .controls {
     display: flex;
     gap: 8px;
@@ -111,7 +200,7 @@
   #recordBtn.recording { background: #dc2626; animation: pulse 1.5s infinite; }
   @keyframes pulse {
     0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.5); }
-    50%      { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
+    50% { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
   }
   #stopBtn { background: #1f2937; color: #9ca3af; }
   #stopBtn:hover:not(:disabled) { background: #374151; color: #e2e8f0; }
@@ -131,7 +220,6 @@
     transition: width 0.04s;
   }
 
-  /* ── Silence slider ── */
   .silence-row {
     display: flex;
     align-items: center;
@@ -145,8 +233,6 @@
     letter-spacing: 0.06em;
     color: #4b5563;
     white-space: nowrap;
-    margin-bottom: 0;
-    display: inline;
   }
   input[type="range"] {
     flex: 1;
@@ -165,17 +251,42 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* ── Text areas ── */
+  .fields {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  .label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 2px;
+  }
   label {
     font-size: 0.68rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: #4b5563;
-    margin-bottom: 2px;
-    display: block;
   }
-  .field { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .live-badge {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #93c5fd;
+    display: none;
+  }
+  .live-badge.visible { display: inline-flex; }
   textarea {
     flex: 1;
     background: #0d1018;
@@ -190,18 +301,20 @@
     min-height: 0;
     -webkit-app-region: no-drag;
   }
+  input[type="text"] {
+    background: #0d1018;
+    border: 1px solid #1f2937;
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-size: 0.83rem;
+    line-height: 1.4;
+    padding: 10px 12px;
+    font-family: inherit;
+    -webkit-app-region: no-drag;
+  }
+  input[type="text"]:focus,
   textarea:focus { outline: none; border-color: #7c3aed; }
 
-  .fields {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  /* ── Bottom row ── */
   .bottom-row {
     display: flex;
     gap: 6px;
@@ -238,17 +351,40 @@
     flex-shrink: 0;
   }
   .copy-btn:hover:not(:disabled) { background: #374151; color: #e2e8f0; }
+  .danger-btn {
+    background: #3b0d11;
+    color: #fca5a5;
+    font-size: 0.74rem;
+    white-space: nowrap;
+    padding: 7px 12px;
+    flex-shrink: 0;
+  }
+  .danger-btn:hover:not(:disabled) {
+    background: #5d1117;
+    color: #fecaca;
+  }
 
-  /* ── Status ── */
   .status {
     font-size: 0.72rem;
     color: #4b5563;
     padding: 4px 0 0;
     display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: space-between;
+    gap: 8px;
     flex-shrink: 0;
     min-height: 18px;
+  }
+  .status-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .status-left span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .dot {
     width: 6px;
@@ -258,23 +394,38 @@
     background: #374151;
   }
   .dot.ready { background: #10b981; }
-  .dot.busy  { background: #f59e0b; animation: blink 0.8s infinite; }
+  .dot.busy { background: #f59e0b; animation: blink 0.8s infinite; }
   .dot.error { background: #ef4444; }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
   .spinner {
-    width: 10px; height: 10px; flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
     border: 1.5px solid #374151;
     border-top-color: #a78bfa;
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .preview-btn {
+    background: rgba(124, 58, 237, 0.16);
+    color: #c4b5fd;
+    font-size: 0.7rem;
+    padding: 5px 9px;
+    border-radius: 6px;
+    display: none;
+  }
+  .preview-btn.visible {
+    display: inline-flex;
+  }
+  .preview-btn:hover:not(:disabled) {
+    background: rgba(124, 58, 237, 0.26);
+    color: #ede9fe;
+  }
 </style>
 </head>
 <body>
 <div class="popup">
-
-  <!-- Title bar -->
   <div class="titlebar">
     <div class="titlebar-left">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -286,278 +437,515 @@
       Speech to Text
       <span class="hint">Ctrl+Shift+Space to hide</span>
     </div>
-    <button class="close-btn" id="closeBtn" title="Hide to tray">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <line x1="18" y1="6" x2="6" y2="18"/>
-        <line x1="6" y1="6" x2="18" y2="18"/>
-      </svg>
-    </button>
+    <div class="titlebar-actions">
+      <button class="toggle-btn" id="settingsBtn" title="Show settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M12 15.5a3.5 3.5 0 1 0 0-7a3.5 3.5 0 0 0 0 7z"/>
+          <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 0 1 0 2.8l-.1.1a2 2 0 0 1-2.8 0l-.1-.1a1 1 0 0 0-1.1-.2a1 1 0 0 0-.6.9V20a2 2 0 0 1-2 2h-.2a2 2 0 0 1-2-2v-.2a1 1 0 0 0-.6-.9a1 1 0 0 0-1.1.2l-.1.1a2 2 0 0 1-2.8 0l-.1-.1a2 2 0 0 1 0-2.8l.1-.1a1 1 0 0 0 .2-1.1a1 1 0 0 0-.9-.6H4a2 2 0 0 1-2-2v-.2a2 2 0 0 1 2-2h.2a1 1 0 0 0 .9-.6a1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 0 1 0-2.8l.1-.1a2 2 0 0 1 2.8 0l.1.1a1 1 0 0 0 1.1.2a1 1 0 0 0 .6-.9V4a2 2 0 0 1 2-2h.2a2 2 0 0 1 2 2v.2a1 1 0 0 0 .6.9a1 1 0 0 0 1.1-.2l.1-.1a2 2 0 0 1 2.8 0l.1.1a2 2 0 0 1 0 2.8l-.1.1a1 1 0 0 0-.2 1.1a1 1 0 0 0 .9.6h.2a2 2 0 0 1 2 2v.2a2 2 0 0 1-2 2h-.2a1 1 0 0 0-.9.6z"/>
+        </svg>
+      </button>
+      <button class="close-btn" id="closeBtn" title="Hide to tray">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
   </div>
 
-  <!-- Body -->
   <div class="body">
-
-    <!-- Record controls -->
-    <div class="controls">
-      <button id="recordBtn">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg>
-        Record
-      </button>
-      <button id="stopBtn" disabled>
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
-        Stop
-      </button>
-      <div class="meter-wrap"><div id="meter"></div></div>
-    </div>
-
-    <!-- Silence timeout slider -->
-    <div class="silence-row">
-      <label for="silenceSlider">Silence</label>
-      <input type="range" id="silenceSlider" min="0" max="100" value="0">
-      <span class="silence-val" id="silenceVal">1.8s</span>
-    </div>
-
-    <!-- Text areas -->
     <div class="fields">
       <div class="field">
-        <label>Transcription</label>
+        <div class="label-row">
+          <label>Transcription</label>
+          <span class="live-badge" id="liveBadge">Live Draft</span>
+        </div>
         <textarea id="transcription" placeholder="Click Record and start speaking..."></textarea>
       </div>
-      <div class="field">
-        <label>Enhanced</label>
-        <textarea id="enhanced" placeholder="Click Enhance with AI..."></textarea>
+    </div>
+
+    <div class="settings-panel" id="settingsPanel">
+      <div class="settings-inner">
+        <div class="toggle-field">
+          <div class="toggle-copy">
+            <strong>Wake Phrase</strong>
+            <span id="wakePhraseHint">Always listen for your wake phrase and start quick-record automatically.</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="wakeToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="field">
+          <label for="wakePhraseInput">Wake phrase text</label>
+          <input id="wakePhraseInput" type="text" placeholder="Hey Jenkins" autocomplete="off" spellcheck="false">
+        </div>
+
+        <div class="toggle-field">
+          <div class="toggle-copy">
+            <strong>Press Enter After Paste</strong>
+            <span>After quick-paste inserts the transcription, automatically press Enter in the target text box.</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="autoEnterToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="controls">
+          <button id="recordBtn">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg>
+            Record
+          </button>
+          <button id="stopBtn" disabled>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+            Stop
+          </button>
+          <div class="meter-wrap"><div id="meter"></div></div>
+        </div>
+
+        <div class="silence-row">
+          <label for="silenceSlider">Silence</label>
+          <input type="range" id="silenceSlider" min="0" max="100" value="0">
+          <span class="silence-val" id="silenceVal">1.8s</span>
+        </div>
+
+        <div class="field">
+          <label>Enhanced</label>
+          <textarea id="enhanced" placeholder="Click Enhance with AI..."></textarea>
+        </div>
+
+        <div class="bottom-row">
+          <select id="modelSelect">
+            <option value="mistral-nemo:latest">mistral-nemo</option>
+            <option value="llama3.1:latest">llama3.1</option>
+          </select>
+          <button id="enhanceBtn" disabled>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+            Enhance
+          </button>
+          <button class="copy-btn" id="copyRaw">Copy</button>
+          <button class="copy-btn" id="copyEnh">Copy AI</button>
+        </div>
+
+        <div class="bottom-row">
+          <button class="danger-btn" id="quitBtn">Quit App</button>
+        </div>
       </div>
     </div>
 
-    <!-- Bottom row: model picker + enhance + copy -->
-    <div class="bottom-row">
-      <select id="modelSelect">
-        <option value="mistral-nemo:latest">mistral-nemo</option>
-        <option value="llama3.1:latest">llama3.1</option>
-      </select>
-      <button id="enhanceBtn" disabled>
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-        </svg>
-        Enhance
-      </button>
-      <button class="copy-btn" id="copyRaw">Copy</button>
-      <button class="copy-btn" id="copyEnh">Copy AI</button>
-    </div>
-
-    <!-- Status -->
     <div class="status">
-      <div class="dot ready" id="statusDot"></div>
-      <span id="statusText">Ready</span>
+      <div class="status-left">
+        <div class="dot ready" id="statusDot"></div>
+        <span id="statusText">Ready</span>
+      </div>
+      <button class="preview-btn" id="previewActionBtn">Done</button>
     </div>
-
   </div>
 </div>
 
 <script>
-const API = 'http://10.201.52.171:8200';
+const HTTP_API = 'http://10.201.52.171:8200';
+const WS_API = 'ws://10.201.52.171:8200/ws/transcribe';
 
-const recordBtn      = document.getElementById('recordBtn');
-const stopBtn        = document.getElementById('stopBtn');
-const enhanceBtn     = document.getElementById('enhanceBtn');
-const meter          = document.getElementById('meter');
-const transcription  = document.getElementById('transcription');
-const enhanced       = document.getElementById('enhanced');
-const modelSelect    = document.getElementById('modelSelect');
-const statusDot      = document.getElementById('statusDot');
-const statusText     = document.getElementById('statusText');
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsPanel = document.getElementById('settingsPanel');
+const recordBtn = document.getElementById('recordBtn');
+const stopBtn = document.getElementById('stopBtn');
+const enhanceBtn = document.getElementById('enhanceBtn');
+const meter = document.getElementById('meter');
+const transcription = document.getElementById('transcription');
+const enhanced = document.getElementById('enhanced');
+const modelSelect = document.getElementById('modelSelect');
+const statusText = document.getElementById('statusText');
+const liveBadge = document.getElementById('liveBadge');
+const wakeToggle = document.getElementById('wakeToggle');
+const wakePhraseInput = document.getElementById('wakePhraseInput');
+const wakePhraseHint = document.getElementById('wakePhraseHint');
+const autoEnterToggle = document.getElementById('autoEnterToggle');
+const previewActionBtn = document.getElementById('previewActionBtn');
+const quitBtn = document.getElementById('quitBtn');
 
-let mediaRecorder = null;
-let audioChunks = [];
 let audioCtx = null;
 let analyser = null;
-let meterRAF = null;
+let processor = null;
+let mutedGain = null;
+let source = null;
 let stream = null;
+let ws = null;
+let meterRAF = null;
+let pendingFrames = [];
+let liveDraft = '';
+let activeLanguage = 'en';
+let settingsOpen = false;
+let quickPreviewStage = 'idle';
+let currentWakePhrase = 'Hey Jenkins';
+let finalizeStopTimer = null;
 
-// ── Status helpers ────────────────────────────────────────────────────────────
-function setStatus(msg, type) {
+function sanitizeWakePhrase(value) {
+  const normalized = String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return normalized || 'Hey Jenkins';
+}
+
+function updateWakePhraseCopy() {
+  wakePhraseHint.textContent = `Always listen for "${currentWakePhrase}" and start quick-record automatically.`;
+}
+
+function applySettingsOpen(open) {
+  settingsOpen = !!open;
+  settingsPanel.className = 'settings-panel' + (settingsOpen ? ' open' : '');
+  localStorage.setItem('settingsOpen', settingsOpen ? '1' : '0');
+}
+
+function setPreviewAction(mode) {
+  if (!mode) {
+    previewActionBtn.className = 'preview-btn';
+    return;
+  }
+
+  previewActionBtn.className = 'preview-btn visible';
+  previewActionBtn.textContent = mode === 'paste' ? 'Paste Now' : 'Done';
+}
+
+function setStatus(message, type) {
   type = type || 'ready';
-  statusText.textContent = msg;
-
+  statusText.textContent = message;
   const existing = document.getElementById('statusDot') || document.getElementById('spinner');
   if (!existing) return;
 
   if (type === 'busy') {
-    const s = document.createElement('div');
-    s.className = 'spinner';
-    s.id = 'spinner';
-    existing.replaceWith(s);
+    const spinner = document.createElement('div');
+    spinner.className = 'spinner';
+    spinner.id = 'spinner';
+    existing.replaceWith(spinner);
+    return;
+  }
+
+  if (existing.id === 'spinner') {
+    const dot = document.createElement('div');
+    dot.className = 'dot ' + type;
+    dot.id = 'statusDot';
+    existing.replaceWith(dot);
   } else {
-    if (existing.id === 'spinner') {
-      const d = document.createElement('div');
-      d.className = 'dot ' + type;
-      d.id = 'statusDot';
-      existing.replaceWith(d);
-    } else {
-      existing.className = 'dot ' + type;
-    }
+    existing.className = 'dot ' + type;
   }
 }
 
-// ── Audio level meter ─────────────────────────────────────────────────────────
+function setLiveMode(enabled) {
+  liveBadge.className = 'live-badge' + (enabled ? ' visible' : '');
+}
+
+function floatTo16BitPCM(float32Array) {
+  const buffer = new ArrayBuffer(float32Array.length * 2);
+  const view = new DataView(buffer);
+  for (let i = 0; i < float32Array.length; i += 1) {
+    const sample = Math.max(-1, Math.min(1, float32Array[i]));
+    view.setInt16(i * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+  }
+  return buffer;
+}
+
+function sendAudioFrame(frame) {
+  if (!ws) return;
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(frame);
+    return;
+  }
+  if (ws.readyState === WebSocket.CONNECTING) {
+    pendingFrames.push(frame);
+  }
+}
+
+function clearFinalizeStopTimer() {
+  if (finalizeStopTimer) {
+    clearTimeout(finalizeStopTimer);
+    finalizeStopTimer = null;
+  }
+}
+
+function closeSocket() {
+  if (ws) {
+    try {
+      ws.close();
+    } catch (_) {}
+    ws = null;
+  }
+  pendingFrames = [];
+}
+
+function clearAudioGraph() {
+  clearFinalizeStopTimer();
+  if (meterRAF) {
+    cancelAnimationFrame(meterRAF);
+    meterRAF = null;
+  }
+  if (processor) {
+    processor.disconnect();
+    processor.onaudioprocess = null;
+    processor = null;
+  }
+  if (source) {
+    source.disconnect();
+    source = null;
+  }
+  if (mutedGain) {
+    mutedGain.disconnect();
+    mutedGain = null;
+  }
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+    stream = null;
+  }
+  if (audioCtx) {
+    audioCtx.close();
+    audioCtx = null;
+    analyser = null;
+  }
+  meter.style.width = '0%';
+}
+
+function clearPipeline() {
+  closeSocket();
+  clearAudioGraph();
+}
+
 function updateMeter() {
   if (!analyser) return;
   const data = new Float32Array(analyser.fftSize);
   analyser.getFloatTimeDomainData(data);
-  const rms = Math.sqrt(data.reduce(function(s,v){ return s+v*v; }, 0) / data.length);
-  const pct = Math.max(0, Math.min(100, (20*Math.log10(Math.max(rms,1e-10)) + 60) / 60 * 100));
+  const rms = Math.sqrt(data.reduce((sum, value) => sum + value * value, 0) / data.length);
+  const pct = Math.max(0, Math.min(100, (20 * Math.log10(Math.max(rms, 1e-10)) + 60) / 60 * 100));
   meter.style.width = pct + '%';
   meterRAF = requestAnimationFrame(updateMeter);
 }
 
-// ── Recording ─────────────────────────────────────────────────────────────────
 async function startRecording() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-  } catch (e) {
-    setStatus('Mic denied: ' + e.message, 'error');
+  } catch (error) {
+    setStatus('Mic denied: ' + error.message, 'error');
     return;
   }
+
+  liveDraft = '';
+  activeLanguage = 'en';
+  pendingFrames = [];
+  transcription.value = '';
+  enhanced.value = '';
+  setLiveMode(true);
+
+  ws = new WebSocket(WS_API);
+  ws.binaryType = 'arraybuffer';
+  ws.addEventListener('open', () => {
+    ws.send(JSON.stringify({
+      type: 'start',
+      mode: 'dictation',
+      sample_rate: audioCtx ? audioCtx.sampleRate : 48000,
+      channels: 1,
+      language: 'en',
+      partial_interval_ms: 800,
+    }));
+    while (pendingFrames.length > 0 && ws.readyState === WebSocket.OPEN) {
+      ws.send(pendingFrames.shift());
+    }
+  });
+
+  ws.addEventListener('message', event => {
+    const payload = JSON.parse(event.data);
+    if (payload.type === 'partial') {
+      liveDraft = payload.text || liveDraft;
+      activeLanguage = payload.language || activeLanguage;
+      if (liveDraft) transcription.value = liveDraft;
+      transcription.scrollTop = transcription.scrollHeight;
+      setStatus('Recording... live draft updating', 'busy');
+      return;
+    }
+
+    if (payload.type === 'final') {
+      clearAudioGraph();
+      const finalText = (payload.text || liveDraft || '').trim();
+      transcription.value = finalText;
+      transcription.scrollTop = transcription.scrollHeight;
+      setLiveMode(false);
+      const lang = payload.language ? '  ' + payload.language.toUpperCase() : '';
+      const dur = payload.duration ? '  ' + payload.duration + 's' : '';
+      setStatus('Done' + lang + dur, 'ready');
+      recordBtn.disabled = false;
+      stopBtn.disabled = true;
+      enhanceBtn.disabled = !finalText;
+      closeSocket();
+      return;
+    }
+
+    if (payload.type === 'error') {
+      clearAudioGraph();
+      if (liveDraft) {
+        transcription.value = liveDraft;
+        enhanceBtn.disabled = !liveDraft.trim();
+        setLiveMode(false);
+        setStatus('Draft ready', 'ready');
+        recordBtn.disabled = false;
+        stopBtn.disabled = true;
+        closeSocket();
+        return;
+      }
+      setLiveMode(false);
+      setStatus('Error: ' + payload.message, 'error');
+      recordBtn.disabled = false;
+      stopBtn.disabled = true;
+      closeSocket();
+    }
+  });
+
+  ws.addEventListener('close', () => {
+    ws = null;
+    pendingFrames = [];
+  });
 
   audioCtx = new AudioContext();
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = 256;
-  audioCtx.createMediaStreamSource(stream).connect(analyser);
+  source = audioCtx.createMediaStreamSource(stream);
+  processor = audioCtx.createScriptProcessor(4096, 1, 1);
+  mutedGain = audioCtx.createGain();
+  mutedGain.gain.value = 0;
+
+  source.connect(analyser);
+  source.connect(processor);
+  processor.connect(mutedGain);
+  mutedGain.connect(audioCtx.destination);
+
+  processor.onaudioprocess = event => {
+    const input = event.inputBuffer.getChannelData(0);
+    sendAudioFrame(floatTo16BitPCM(input));
+  };
+
   meterRAF = requestAnimationFrame(updateMeter);
-
-  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-    ? 'audio/webm;codecs=opus' : 'audio/webm';
-
-  audioChunks = [];
-  mediaRecorder = new MediaRecorder(stream, { mimeType });
-  mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) audioChunks.push(e.data); };
-  mediaRecorder.onstop = handleStop;
-  mediaRecorder.start(100);
-
   recordBtn.disabled = true;
   recordBtn.classList.add('recording');
   stopBtn.disabled = false;
+  enhanceBtn.disabled = true;
   setStatus('Recording...', 'busy');
 }
 
 function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-  if (stream) { stream.getTracks().forEach(function(t){ t.stop(); }); stream = null; }
-  if (meterRAF) { cancelAnimationFrame(meterRAF); meterRAF = null; }
-  if (audioCtx) { audioCtx.close(); audioCtx = null; analyser = null; }
-  meter.style.width = '0%';
-  recordBtn.disabled = false;
+  clearFinalizeStopTimer();
   recordBtn.classList.remove('recording');
+  recordBtn.disabled = true;
   stopBtn.disabled = true;
+  setStatus('Finalizing transcript...', 'busy');
+
+  finalizeStopTimer = setTimeout(() => {
+    clearAudioGraph();
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send('stop');
+      return;
+    }
+
+    closeSocket();
+    setLiveMode(false);
+    recordBtn.disabled = false;
+    setStatus(liveDraft ? 'Draft ready' : 'Error', liveDraft ? 'ready' : 'error');
+  }, 260);
 }
 
-async function handleStop() {
-  const blob = new Blob(audioChunks, { type: 'audio/webm' });
-  if (blob.size < 500) { setStatus('Too short', 'error'); return; }
-
-  setStatus('Transcribing...', 'busy');
-  const form = new FormData();
-  form.append('audio', blob, 'recording.webm');
-
-  try {
-    const res = await fetch(API + '/transcribe', { method: 'POST', body: form });
-    if (!res.ok) throw new Error((await res.json().catch(function(){return{};})).detail || res.statusText);
-    const data = await res.json();
-    transcription.value = data.text || '';
-    const lang = data.language ? '  ' + data.language.toUpperCase() : '';
-    const dur  = data.duration  ? '  ' + data.duration + 's' : '';
-    setStatus('Done' + lang + dur, 'ready');
-    enhanceBtn.disabled = !data.text;
-  } catch (e) {
-    setStatus('Error: ' + e.message, 'error');
-  }
-}
-
-// ── Enhance ───────────────────────────────────────────────────────────────────
 async function enhanceText() {
   const text = transcription.value.trim();
   if (!text) return;
   enhanceBtn.disabled = true;
   setStatus('Enhancing...', 'busy');
   try {
-    const res = await fetch(API + '/enhance', {
+    const res = await fetch(HTTP_API + '/enhance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, model: modelSelect.value }),
     });
-    if (!res.ok) throw new Error((await res.json().catch(function(){return{};})).detail || res.statusText);
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
     enhanced.value = (await res.json()).enhanced_text || '';
     setStatus('Enhanced', 'ready');
-  } catch (e) {
-    setStatus('Error: ' + e.message, 'error');
+  } catch (error) {
+    setStatus('Error: ' + error.message, 'error');
   } finally {
     enhanceBtn.disabled = false;
   }
 }
 
-// ── Model list ────────────────────────────────────────────────────────────────
 async function loadModels() {
   try {
-    const data = await fetch(API + '/models').then(function(r){ return r.json(); });
+    const data = await fetch(HTTP_API + '/models').then(response => response.json());
     if (data.models && data.models.length) {
       modelSelect.innerHTML = '';
-      data.models.forEach(function(m) {
-        const o = document.createElement('option');
-        o.value = m; o.textContent = m;
-        modelSelect.appendChild(o);
+      data.models.forEach(model => {
+        const option = document.createElement('option');
+        option.value = model;
+        option.textContent = model;
+        modelSelect.appendChild(option);
       });
     }
   } catch (_) {}
 }
 
-// ── Copy ──────────────────────────────────────────────────────────────────────
-document.getElementById('copyRaw').addEventListener('click', function() {
-  if (transcription.value) navigator.clipboard.writeText(transcription.value)
-    .then(function(){ setStatus('Copied', 'ready'); });
-});
-document.getElementById('copyEnh').addEventListener('click', function() {
-  if (enhanced.value) navigator.clipboard.writeText(enhanced.value)
-    .then(function(){ setStatus('Copied (AI)', 'ready'); });
+document.getElementById('copyRaw').addEventListener('click', () => {
+  if (!transcription.value) return;
+  navigator.clipboard.writeText(transcription.value).then(() => setStatus('Copied', 'ready'));
 });
 
-// ── Window controls ───────────────────────────────────────────────────────────
-document.getElementById('closeBtn').addEventListener('click', function() {
+document.getElementById('copyEnh').addEventListener('click', () => {
+  if (!enhanced.value) return;
+  navigator.clipboard.writeText(enhanced.value).then(() => setStatus('Copied (AI)', 'ready'));
+});
+
+document.getElementById('closeBtn').addEventListener('click', () => {
   if (window.electronAPI) window.electronAPI.hideWindow();
 });
 
-// ── Wire up buttons ───────────────────────────────────────────────────────────
+quitBtn.addEventListener('click', () => {
+  if (window.electronAPI && window.electronAPI.quitApp) {
+    window.electronAPI.quitApp();
+  }
+});
+
 recordBtn.addEventListener('click', startRecording);
 stopBtn.addEventListener('click', stopRecording);
 enhanceBtn.addEventListener('click', enhanceText);
+settingsBtn.addEventListener('click', () => applySettingsOpen(!settingsOpen));
+previewActionBtn.addEventListener('click', () => {
+  if (window.electronAPI && window.electronAPI.dismissPreview) {
+    window.electronAPI.dismissPreview();
+  }
+});
 
-loadModels();
+const savedSettingsOpen = localStorage.getItem('settingsOpen') === '1';
+applySettingsOpen(savedSettingsOpen);
 
-// ── Silence timeout slider ────────────────────────────────────────────────────
 const silenceSlider = document.getElementById('silenceSlider');
-const silenceVal    = document.getElementById('silenceVal');
+const silenceVal = document.getElementById('silenceVal');
 
-// Logarithmic mapping: slider 0–99 → 1800ms–30000ms, slider 100 → Infinity
-function sliderToMs(v) {
-  if (v >= 100) return Infinity;
-  return Math.round(1800 * Math.pow(30000 / 1800, v / 99));
+function sliderToMs(value) {
+  if (value >= 100) return Infinity;
+  return Math.round(1800 * Math.pow(30000 / 1800, value / 99));
 }
+
 function msToLabel(ms) {
   if (!isFinite(ms)) return '∞';
   if (ms < 10000) return (ms / 1000).toFixed(1) + 's';
   return Math.round(ms / 1000) + 's';
 }
 
-// Restore saved value
 const savedSilence = parseInt(localStorage.getItem('silenceSlider') || '0', 10);
 silenceSlider.value = savedSilence;
 silenceVal.textContent = msToLabel(sliderToMs(savedSilence));
-
-// Send initial value to indicator on load
 if (window.electronAPI && window.electronAPI.setSilence) {
   window.electronAPI.setSilence(sliderToMs(savedSilence));
 }
 
-silenceSlider.addEventListener('input', function () {
+silenceSlider.addEventListener('input', function onSlider() {
   const ms = sliderToMs(parseInt(this.value, 10));
   silenceVal.textContent = msToLabel(ms);
   localStorage.setItem('silenceSlider', this.value);
@@ -566,15 +954,170 @@ silenceSlider.addEventListener('input', function () {
   }
 });
 
-// ── Receive transcription injected from Ctrl+Space quick-record ───────────────
 if (window.electronAPI && window.electronAPI.onInjectText) {
-  window.electronAPI.onInjectText(function(text) {
+  window.electronAPI.onInjectText(text => {
     transcription.value = text;
     enhanced.value = '';
+    setLiveMode(false);
     enhanceBtn.disabled = !text;
-    setStatus('Received from quick-record', 'ready');
+    setStatus('Previewing before paste...', 'ready');
+    setPreviewAction('paste');
   });
 }
+
+if (window.electronAPI && window.electronAPI.onLiveText) {
+  window.electronAPI.onLiveText(payload => {
+    if (!payload || !payload.text) return;
+    transcription.value = payload.text;
+    enhanced.value = '';
+    enhanceBtn.disabled = !payload.text.trim();
+    setLiveMode(!!payload.partial);
+    setStatus(payload.partial ? 'Live preview before paste' : 'Preview ready', payload.partial ? 'busy' : 'ready');
+    if (!payload.partial) {
+      setPreviewAction('paste');
+    }
+  });
+}
+
+if (window.electronAPI && window.electronAPI.onQuickSessionState) {
+  window.electronAPI.onQuickSessionState(payload => {
+    const stage = payload && payload.stage;
+    quickPreviewStage = stage || 'idle';
+
+    if (stage === 'recording') {
+      setPreviewAction(null);
+      if (!transcription.value.trim()) transcription.value = '';
+      enhanced.value = '';
+      enhanceBtn.disabled = true;
+      setLiveMode(true);
+      setStatus('Listening... live preview attached to quick-record', 'busy');
+      return;
+    }
+
+    if (stage === 'finalizing') {
+      applySettingsOpen(false);
+      setPreviewAction(null);
+      setLiveMode(true);
+      setStatus('Finalizing preview before paste...', 'busy');
+      return;
+    }
+
+    if (stage === 'preview') {
+      applySettingsOpen(false);
+      setLiveMode(false);
+      setStatus('Previewing final text before paste...', 'ready');
+      setPreviewAction('paste');
+      return;
+    }
+
+    if (stage === 'pasted') {
+      setLiveMode(false);
+      setStatus('Pasted', 'ready');
+      setPreviewAction('done');
+      return;
+    }
+
+    if (stage === 'error') {
+      setPreviewAction(null);
+      setLiveMode(false);
+      setStatus('Quick-record error', 'error');
+      return;
+    }
+
+    if (stage === 'idle') {
+      setPreviewAction(null);
+      setLiveMode(false);
+      if (!transcription.value.trim()) {
+        setStatus('Ready', 'ready');
+      }
+    }
+  });
+}
+
+const savedWakeMode = localStorage.getItem('wakeModeEnabled') === '1';
+wakeToggle.checked = savedWakeMode;
+if (window.electronAPI && window.electronAPI.setWakeMode) {
+  window.electronAPI.setWakeMode(savedWakeMode);
+}
+
+const savedWakePhrase = sanitizeWakePhrase(localStorage.getItem('wakePhrase') || 'Hey Jenkins');
+currentWakePhrase = savedWakePhrase;
+wakePhraseInput.value = savedWakePhrase;
+updateWakePhraseCopy();
+if (window.electronAPI && window.electronAPI.setWakePhrase) {
+  window.electronAPI.setWakePhrase(savedWakePhrase);
+}
+
+const savedAutoEnter = localStorage.getItem('autoEnterEnabled') === '1';
+autoEnterToggle.checked = savedAutoEnter;
+if (window.electronAPI && window.electronAPI.setAutoEnter) {
+  window.electronAPI.setAutoEnter(savedAutoEnter);
+}
+
+wakeToggle.addEventListener('change', () => {
+  const enabled = wakeToggle.checked;
+  localStorage.setItem('wakeModeEnabled', enabled ? '1' : '0');
+  if (window.electronAPI && window.electronAPI.setWakeMode) {
+    window.electronAPI.setWakeMode(enabled);
+  }
+  setStatus(enabled ? 'Wake phrase enabled' : 'Wake phrase disabled', 'ready');
+});
+
+function commitWakePhrase() {
+  const phrase = sanitizeWakePhrase(wakePhraseInput.value);
+  currentWakePhrase = phrase;
+  wakePhraseInput.value = phrase;
+  localStorage.setItem('wakePhrase', phrase);
+  updateWakePhraseCopy();
+  if (window.electronAPI && window.electronAPI.setWakePhrase) {
+    window.electronAPI.setWakePhrase(phrase);
+  }
+  setStatus('Wake phrase updated', 'ready');
+}
+
+wakePhraseInput.addEventListener('change', commitWakePhrase);
+wakePhraseInput.addEventListener('blur', commitWakePhrase);
+wakePhraseInput.addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    commitWakePhrase();
+  }
+});
+
+autoEnterToggle.addEventListener('change', () => {
+  const enabled = autoEnterToggle.checked;
+  localStorage.setItem('autoEnterEnabled', enabled ? '1' : '0');
+  if (window.electronAPI && window.electronAPI.setAutoEnter) {
+    window.electronAPI.setAutoEnter(enabled);
+  }
+  setStatus(enabled ? 'Paste + Enter enabled' : 'Paste only enabled', 'ready');
+});
+
+if (window.electronAPI && window.electronAPI.onWakeModeState) {
+  window.electronAPI.onWakeModeState(payload => {
+    const enabled = !!(payload && payload.enabled);
+    wakeToggle.checked = enabled;
+  });
+}
+
+if (window.electronAPI && window.electronAPI.onWakePhraseState) {
+  window.electronAPI.onWakePhraseState(payload => {
+    const phrase = sanitizeWakePhrase(payload && payload.phrase);
+    currentWakePhrase = phrase;
+    wakePhraseInput.value = phrase;
+    localStorage.setItem('wakePhrase', phrase);
+    updateWakePhraseCopy();
+  });
+}
+
+if (window.electronAPI && window.electronAPI.onAutoEnterState) {
+  window.electronAPI.onAutoEnterState(payload => {
+    const enabled = !!(payload && payload.enabled);
+    autoEnterToggle.checked = enabled;
+  });
+}
+
+loadModels();
 </script>
 </body>
 </html>
