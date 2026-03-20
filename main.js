@@ -217,11 +217,12 @@ function clearPendingQuickPaste() {
 
 function normalizeTranscriptPayload(payload) {
   if (payload && typeof payload === 'object') {
+    const preferRawText = !!payload.partial;
     const rawText = String(payload.raw_text || payload.rawText || payload.text || '').trim();
     const expressiveText = String(payload.expressive_text || payload.expressiveText || payload.text || '').trim();
     return {
       ...payload,
-      text: expressiveText || rawText,
+      text: preferRawText ? (rawText || expressiveText) : (expressiveText || rawText),
       raw_text: rawText || expressiveText,
       expressive_text: expressiveText || rawText,
     };

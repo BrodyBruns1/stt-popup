@@ -4,6 +4,14 @@ Floating speech-to-text desktop widget for Windows. It records from the micropho
 
 Current tagged release: `v1.4.4`
 
+## Current Branch Notes
+
+- Live partials now prefer the raw transcript while you are still speaking, which avoids expressive/tone formatting causing mid-sentence rewrites.
+- Shorter partial regressions are softened before they replace the on-screen draft, reducing visible restart/flush behavior during streaming correction.
+- Recording now keeps a short PCM pre-roll and uses a smaller capture buffer so tiny lead-in words are less likely to get clipped at the start of dictation.
+- Wake-to-dictation handoff carries recent audio forward so the first spoken words after activation survive more reliably.
+- Final transcripts still preserve tone-aware expressive text for preview and paste after the utterance settles.
+
 ## Features
 
 - Non-focus-stealing pill indicator for quick dictation

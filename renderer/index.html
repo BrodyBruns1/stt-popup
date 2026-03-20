@@ -699,17 +699,27 @@ let currentCustomDictionaryText = '';
 let finalizeStopTimer = null;
 let currentWindowMode = 'full';
 let currentRawTranscript = '';
+let liveDraftTranscript = null;
+let deferredShrinkTranscript = null;
+let preRollFrames = [];
+let preRollBytes = 0;
+const PRE_ROLL_MS = 320;
+const SCRIPT_PROCESSOR_SIZE = 2048;
 
-function normalizeTranscriptPayload(payload) {
+function normalizeTranscriptPayload(payload, options) {
+  const settings = options || {};
   if (payload && typeof payload === 'object') {
+    const preferRawText = !!settings.preferRawText;
+    const partial = settings.partial != null ? !!settings.partial : !!payload.partial;
     const rawText = String(payload.raw_text || payload.rawText || payload.text || '').trim();
     const expressiveText = String(payload.expressive_text || payload.expressiveText || payload.text || '').trim();
     return {
       ...payload,
-      text: expressiveText || rawText,
+      text: preferRawText ? (rawText || expressiveText) : (expressiveText || rawText),
       raw_text: rawText || expressiveText,
       expressive_text: expressiveText || rawText,
       tone: payload.tone || null,
+      partial,
     };
   }
 
@@ -722,13 +732,112 @@ function normalizeTranscriptPayload(payload) {
   };
 }
 
+function transcriptTokens(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]+/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function sharedPrefixCount(left, right) {
+  let index = 0;
+  while (index < left.length && index < right.length && left[index] === right[index]) {
+    index += 1;
+  }
+  return index;
+}
+
+function sharedSuffixCount(left, right) {
+  let count = 0;
+  while (
+    count < left.length &&
+    count < right.length &&
+    left[left.length - 1 - count] === right[right.length - 1 - count]
+  ) {
+    count += 1;
+  }
+  return count;
+}
+
+function shouldDeferShrink(currentTranscript, nextTranscript) {
+  const currentTokens = transcriptTokens(currentTranscript?.raw_text || currentTranscript?.text || '');
+  const nextTokens = transcriptTokens(nextTranscript?.raw_text || nextTranscript?.text || '');
+
+  if (currentTokens.length < 4 || nextTokens.length < 2 || nextTokens.length >= currentTokens.length) {
+    return false;
+  }
+
+  const shrinkBy = currentTokens.length - nextTokens.length;
+  if (shrinkBy < 2) {
+    return false;
+  }
+
+  const prefixRatio = sharedPrefixCount(currentTokens, nextTokens) / Math.max(1, nextTokens.length);
+  const suffixRatio = sharedSuffixCount(currentTokens, nextTokens) / Math.max(1, nextTokens.length);
+  return prefixRatio >= 0.75 || suffixRatio >= 0.75;
+}
+
+function mergeLiveTranscript(nextTranscript) {
+  if (!nextTranscript) return liveDraftTranscript;
+
+  if (!nextTranscript.partial) {
+    deferredShrinkTranscript = null;
+    liveDraftTranscript = nextTranscript;
+    return nextTranscript;
+  }
+
+  if (!liveDraftTranscript || !(liveDraftTranscript.raw_text || liveDraftTranscript.text)) {
+    deferredShrinkTranscript = null;
+    liveDraftTranscript = nextTranscript;
+    return nextTranscript;
+  }
+
+  const currentRaw = liveDraftTranscript.raw_text || liveDraftTranscript.text || '';
+  const nextRaw = nextTranscript.raw_text || nextTranscript.text || '';
+  if (!nextRaw) {
+    return {
+      ...liveDraftTranscript,
+      tone: nextTranscript.tone || liveDraftTranscript.tone,
+      language: nextTranscript.language || liveDraftTranscript.language,
+      partial: true,
+    };
+  }
+
+  const currentCount = transcriptTokens(currentRaw).length;
+  const nextCount = transcriptTokens(nextRaw).length;
+  if (nextCount >= currentCount) {
+    deferredShrinkTranscript = null;
+    liveDraftTranscript = nextTranscript;
+    return nextTranscript;
+  }
+
+  if (shouldDeferShrink(liveDraftTranscript, nextTranscript)) {
+    const sameDeferred = deferredShrinkTranscript
+      && (deferredShrinkTranscript.raw_text || deferredShrinkTranscript.text || '') === nextRaw;
+    if (!sameDeferred) {
+      deferredShrinkTranscript = nextTranscript;
+      return {
+        ...liveDraftTranscript,
+        tone: nextTranscript.tone || liveDraftTranscript.tone,
+        language: nextTranscript.language || liveDraftTranscript.language,
+        partial: true,
+      };
+    }
+  }
+
+  deferredShrinkTranscript = null;
+  liveDraftTranscript = nextTranscript;
+  return nextTranscript;
+}
+
 function formatToneLabel(tone) {
   if (!tone || !tone.label) return 'Calm';
   return tone.label.charAt(0).toUpperCase() + tone.label.slice(1);
 }
 
-function updateToneUI(payload) {
-  const transcript = normalizeTranscriptPayload(payload);
+function updateToneUI(payload, options) {
+  const transcript = normalizeTranscriptPayload(payload, options);
   const tone = transcript.tone;
   const displayText = transcript.text || '';
   currentRawTranscript = transcript.raw_text || displayText;
@@ -871,6 +980,28 @@ function floatTo16BitPCM(float32Array) {
   return buffer;
 }
 
+function maxPreRollBytes() {
+  const sampleRate = audioCtx ? audioCtx.sampleRate : 48000;
+  return Math.max(4096, Math.round(sampleRate * 2 * (PRE_ROLL_MS / 1000)));
+}
+
+function rememberPreRollFrame(frame) {
+  if (!frame) return;
+  preRollFrames.push(frame);
+  preRollBytes += frame.byteLength || 0;
+
+  const limit = maxPreRollBytes();
+  while (preRollBytes > limit && preRollFrames.length > 1) {
+    const dropped = preRollFrames.shift();
+    preRollBytes -= dropped ? (dropped.byteLength || 0) : 0;
+  }
+}
+
+function resetPreRoll() {
+  preRollFrames = [];
+  preRollBytes = 0;
+}
+
 function sendAudioFrame(frame) {
   if (!ws) return;
   if (ws.readyState === WebSocket.OPEN) {
@@ -927,6 +1058,7 @@ function clearAudioGraph() {
     audioCtx = null;
     analyser = null;
   }
+  resetPreRoll();
   meter.style.width = '0%';
 }
 
@@ -958,6 +1090,8 @@ async function startRecording() {
   pendingFrames = [];
   transcription.value = '';
   currentRawTranscript = '';
+  liveDraftTranscript = null;
+  deferredShrinkTranscript = null;
   enhanced.value = '';
   updateToneUI(null);
   setLiveMode(true);
@@ -983,7 +1117,10 @@ async function startRecording() {
   ws.addEventListener('message', event => {
     const payload = JSON.parse(event.data);
     if (payload.type === 'partial') {
-      const transcriptPayload = updateToneUI(payload);
+      const transcriptPayload = mergeLiveTranscript(
+        normalizeTranscriptPayload(payload, { preferRawText: true, partial: true })
+      );
+      updateToneUI(transcriptPayload);
       liveDraft = transcriptPayload.text || liveDraft;
       activeLanguage = transcriptPayload.language || activeLanguage;
       if (liveDraft) transcription.value = liveDraft;
@@ -995,7 +1132,10 @@ async function startRecording() {
 
     if (payload.type === 'final') {
       clearAudioGraph();
-      const transcriptPayload = updateToneUI(payload);
+      const transcriptPayload = normalizeTranscriptPayload(payload);
+      liveDraftTranscript = transcriptPayload;
+      deferredShrinkTranscript = null;
+      updateToneUI(transcriptPayload);
       const finalText = (transcriptPayload.text || liveDraft || '').trim();
       transcription.value = finalText;
       transcription.scrollTop = transcription.scrollHeight;
@@ -1040,7 +1180,7 @@ async function startRecording() {
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = 256;
   source = audioCtx.createMediaStreamSource(stream);
-  processor = audioCtx.createScriptProcessor(4096, 1, 1);
+  processor = audioCtx.createScriptProcessor(SCRIPT_PROCESSOR_SIZE, 1, 1);
   mutedGain = audioCtx.createGain();
   mutedGain.gain.value = 0;
 
@@ -1051,9 +1191,12 @@ async function startRecording() {
 
   processor.onaudioprocess = event => {
     const input = event.inputBuffer.getChannelData(0);
-    sendAudioFrame(floatTo16BitPCM(input));
+    const frame = floatTo16BitPCM(input);
+    rememberPreRollFrame(frame);
+    sendAudioFrame(frame);
   };
 
+  await audioCtx.resume().catch(() => {});
   meterRAF = requestAnimationFrame(updateMeter);
   recordBtn.disabled = true;
   recordBtn.classList.add('recording');
@@ -1185,7 +1328,10 @@ silenceSlider.addEventListener('input', function onSlider() {
 
 if (window.electronAPI && window.electronAPI.onInjectText) {
   window.electronAPI.onInjectText(payload => {
-    const transcriptPayload = updateToneUI(payload);
+    const transcriptPayload = normalizeTranscriptPayload(payload);
+    liveDraftTranscript = transcriptPayload;
+    deferredShrinkTranscript = null;
+    updateToneUI(transcriptPayload);
     transcription.value = transcriptPayload.text || '';
     enhanced.value = '';
     setLiveMode(false);
@@ -1203,7 +1349,14 @@ if (window.electronAPI && window.electronAPI.onWindowModeState) {
 
 if (window.electronAPI && window.electronAPI.onLiveText) {
   window.electronAPI.onLiveText(payload => {
-    const transcriptPayload = updateToneUI(payload);
+    const transcriptPayload = payload && payload.partial
+      ? mergeLiveTranscript(normalizeTranscriptPayload(payload, { preferRawText: true, partial: true }))
+      : normalizeTranscriptPayload(payload);
+    if (!transcriptPayload.partial) {
+      liveDraftTranscript = transcriptPayload;
+      deferredShrinkTranscript = null;
+    }
+    updateToneUI(transcriptPayload);
     if (!transcriptPayload.text) return;
     transcription.value = transcriptPayload.text;
     enhanced.value = '';
