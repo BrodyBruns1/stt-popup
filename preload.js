@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onLiveText:    (cb)      => ipcRenderer.on('live-text', (_, payload) => cb(payload)),
   onQuickSessionState: (cb) => ipcRenderer.on('quick-session-state', (_, payload) => cb(payload)),
   onWindowModeState: (cb) => ipcRenderer.on('window-mode-state', (_, payload) => cb(payload)),
+  onWindowViewState: (cb) => ipcRenderer.on('window-view-state', (_, payload) => cb(payload)),
   onWakeModeState: (cb)    => ipcRenderer.on('wake-mode-state', (_, payload) => cb(payload)),
   onWakePhraseState: (cb)  => ipcRenderer.on('wake-phrase-state', (_, payload) => cb(payload)),
   onCustomDictionaryState: (cb) => ipcRenderer.on('custom-dictionary-state', (_, payload) => cb(payload)),
@@ -18,5 +19,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setWakePhrase: (phrase)  => ipcRenderer.send('set-wake-phrase', phrase),
   setCustomDictionary: (text) => ipcRenderer.send('set-custom-dictionary', text),
   setAutoEnter:  (enabled) => ipcRenderer.send('set-auto-enter', enabled),
+  setFullWindowView: (view) => ipcRenderer.send('set-full-window-view', view),
+  saveTonalityClip: (payload) => ipcRenderer.invoke('save-tonality-clip', payload),
+  openTonalityLabFolder: () => ipcRenderer.invoke('open-tonality-lab-folder'),
   setIndicatorDraggable: (v) => ipcRenderer.send('set-indicator-draggable', v),
 });

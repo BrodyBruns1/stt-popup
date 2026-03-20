@@ -1,6 +1,6 @@
 const {
   app, BrowserWindow, globalShortcut, Tray, Menu,
-  ipcMain, screen, nativeImage, clipboard, session,
+  ipcMain, screen, nativeImage, clipboard, session, shell,
 } = require('electron');
 const { exec } = require('child_process');
 const path = require('path');
@@ -34,8 +34,13 @@ let customDictionaryText = '';
 const QUICK_PASTE_DELAY_MS = 650;
 let pendingQuickPasteTimer = null;
 let pendingQuickPasteText = '';
-const FULL_WINDOW_SIZE = { width: 420, height: 700 };
+const FULL_WINDOW_SIZES = {
+  transcript: { width: 560, height: 780 },
+  lab: { width: 640, height: 920 },
+  config: { width: 520, height: 820 },
+};
 const COMPACT_WINDOW_SIZE = { width: 360, height: 210 };
+let fullWindowView = 'transcript';
 
 function sanitizeWakePhrase(value) {
   const normalized = String(value || '')
@@ -48,6 +53,29 @@ function sanitizeCustomDictionaryText(value) {
   return String(value || '')
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n');
+}
+
+function sanitizeTonalityLabFilename(value) {
+  return String(value || 'clip')
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 96) || 'clip';
+}
+
+function getFullWindowSize(view = fullWindowView) {
+  return FULL_WINDOW_SIZES[view] || FULL_WINDOW_SIZES.transcript;
+}
+
+function getTonalityLabDir() {
+  const documentsDir = app.getPath('documents');
+  return path.join(documentsDir, 'STT Popup', 'Tonality Lab');
+}
+
+function ensureTonalityLabDir() {
+  const labDir = getTonalityLabDir();
+  fs.mkdirSync(labDir, { recursive: true });
+  return labDir;
 }
 
 // ── Tray icon ────────────────────────────────────────────────────────────────
@@ -94,9 +122,10 @@ function createIndicatorWindow() {
 
 // ── Full window (shown only via Ctrl+Shift+Space) ────────────────────────────
 function createFullWindow() {
+  const initialSize = getFullWindowSize('transcript');
   fullWin = new BrowserWindow({
-    width:  FULL_WINDOW_SIZE.width,
-    height: FULL_WINDOW_SIZE.height,
+    width:  initialSize.width,
+    height: initialSize.height,
     show:        false,
     frame:       false,
     transparent: true,
@@ -116,12 +145,23 @@ function createFullWindow() {
 
 function setFullWindowMode(mode) {
   if (!fullWin) return;
-  const size = mode === 'compact' ? COMPACT_WINDOW_SIZE : FULL_WINDOW_SIZE;
+  const size = mode === 'compact' ? COMPACT_WINDOW_SIZE : getFullWindowSize(fullWindowView);
   const [currentWidth, currentHeight] = fullWin.getSize();
   if (currentWidth !== size.width || currentHeight !== size.height) {
     fullWin.setSize(size.width, size.height, false);
   }
-  fullWin.webContents.send('window-mode-state', { mode });
+  fullWin.webContents.send('window-mode-state', { mode, view: fullWindowView });
+}
+
+function setFullWindowView(view, { reposition = true } = {}) {
+  if (!view || !FULL_WINDOW_SIZES[view]) return;
+  fullWindowView = view;
+  if (!fullWin) return;
+  if (fullWin.isVisible()) {
+    setFullWindowMode('full');
+    if (reposition) positionFullWindowRelativeToIndicator();
+  }
+  fullWin.webContents.send('window-view-state', { view: fullWindowView });
 }
 
 function pickAttachedPosition({ indicatorX, indicatorY, indicatorWidth, indicatorHeight, fullWidth, fullHeight, areaX, areaY, areaWidth, areaHeight }) {
@@ -395,6 +435,33 @@ ipcMain.on('set-custom-dictionary', (_, text) => {
 ipcMain.on('set-auto-enter', (_, enabled) => {
   autoPressEnter = !!enabled;
   if (fullWin) fullWin.webContents.send('auto-enter-state', { enabled: autoPressEnter });
+});
+
+ipcMain.on('set-full-window-view', (_, view) => {
+  setFullWindowView(view);
+});
+
+ipcMain.handle('save-tonality-clip', async (_, payload) => {
+  const bytes = payload && payload.bytes;
+  const fileName = sanitizeTonalityLabFilename(payload && payload.file_name) + '.wav';
+  if (!bytes) {
+    throw new Error('Missing clip bytes');
+  }
+
+  const clipBuffer = Buffer.from(bytes);
+  const labDir = ensureTonalityLabDir();
+  const filePath = path.join(labDir, fileName);
+  fs.writeFileSync(filePath, clipBuffer);
+  return { path: filePath, file_name: fileName, folder: labDir };
+});
+
+ipcMain.handle('open-tonality-lab-folder', async () => {
+  const labDir = ensureTonalityLabDir();
+  const error = await shell.openPath(labDir);
+  if (error) {
+    throw new Error(error);
+  }
+  return { path: labDir };
 });
 
 // ── IPC from full window ──────────────────────────────────────────────────────

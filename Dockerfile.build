@@ -2,14 +2,23 @@ FROM node:20-slim
 
 # electron-builder needs these for packaging
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
     rpm \
     fakeroot \
     dpkg \
+    libgtk-3-0 \
+    libnotify4 \
+    libnss3 \
+    libxss1 \
+    libxtst6 \
+    libatspi2.0-0 \
+    libdrm2 \
+    libgbm1 \
+    libasound2 \
+    libxshmfence1 \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
-COPY package.json .
-RUN npm install
-
-COPY . .
-RUN npm run build:linux
+COPY package.json package-lock.json ./
+RUN npm ci

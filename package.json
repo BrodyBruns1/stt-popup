@@ -6,8 +6,11 @@
   "scripts": {
     "start": "electron .",
     "build:linux": "electron-builder --linux AppImage",
-    "build:win": "electron-builder --win portable",
-    "build:mac": "electron-builder --mac"
+    "build:win": "electron-builder --win dir",
+    "build:win:portable": "electron-builder --win portable",
+    "build:mac": "electron-builder --mac",
+    "build:artifacts": "bash ./scripts/build-artifacts.sh",
+    "publish:artifacts": "bash ./scripts/publish-artifacts.sh"
   },
   "build": {
     "appId": "com.homelab.stt-popup",
@@ -20,7 +23,7 @@
       "category": "Utility"
     },
     "win": {
-      "target": "portable",
+      "target": "dir",
       "sign": false,
       "signDlls": false
     }

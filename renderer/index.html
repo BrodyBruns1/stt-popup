@@ -103,6 +103,7 @@
   .popup.compact-mode .settings-panel,
   .popup.compact-mode .copy-row,
   .popup.compact-mode .bottom-row,
+  .popup.compact-mode .lab-panel,
   .popup.compact-mode #enhanced,
   .popup.compact-mode label[for="enhanced"],
   .popup.compact-mode #recordBtn,
@@ -365,6 +366,7 @@
   .tone-chip.punchy { border-color: rgba(245, 158, 11, 0.24); color: #fcd34d; }
   .tone-chip.heated { border-color: rgba(248, 113, 113, 0.3); color: #fca5a5; }
   .tone-chip.shouted { border-color: rgba(239, 68, 68, 0.4); color: #fecaca; }
+  .tone-chip.questioning { border-color: rgba(96, 165, 250, 0.24); color: #bfdbfe; }
   .raw-note {
     display: none;
     margin-bottom: 6px;
@@ -374,6 +376,127 @@
   }
   .raw-note.visible {
     display: block;
+  }
+  .lab-panel {
+    display: none;
+    min-height: 190px;
+    max-height: 250px;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(56, 189, 248, 0.18);
+    background: rgba(10, 15, 28, 0.92);
+    overflow: hidden;
+  }
+  .lab-panel.visible {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .lab-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .lab-meta {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .lab-kicker {
+    font-size: 0.63rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #38bdf8;
+  }
+  .lab-title {
+    font-size: 0.84rem;
+    color: #e2e8f0;
+  }
+  .lab-note {
+    color: #94a3b8;
+    font-size: 0.71rem;
+    line-height: 1.45;
+  }
+  .lab-phrase {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.03);
+    color: #f8fafc;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+  .lab-summary {
+    color: #cbd5e1;
+    font-size: 0.72rem;
+    line-height: 1.5;
+  }
+  .lab-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .lab-actions button {
+    padding: 7px 10px;
+    font-size: 0.72rem;
+    color: #cbd5e1;
+    background: #1f2937;
+  }
+  .lab-actions button:hover:not(:disabled) {
+    background: #334155;
+    color: #f8fafc;
+  }
+  .lab-samples {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+  .lab-empty {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.02);
+    border: 1px dashed rgba(255,255,255,0.06);
+    color: #64748b;
+    font-size: 0.72rem;
+    line-height: 1.45;
+  }
+  .lab-sample {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.05);
+    background: rgba(255,255,255,0.025);
+  }
+  .lab-sample-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .lab-sample-label {
+    color: #e2e8f0;
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+  .lab-sample-time {
+    color: #64748b;
+    font-size: 0.66rem;
+    flex-shrink: 0;
+  }
+  .lab-sample-line {
+    color: #94a3b8;
+    font-size: 0.7rem;
+    line-height: 1.45;
   }
   textarea {
     flex: 1;
@@ -516,6 +639,108 @@
     background: rgba(124, 58, 237, 0.26);
     color: #ede9fe;
   }
+  html, body,
+  .popup {
+    width: 100%;
+    height: 100%;
+  }
+  .body {
+    min-height: 0;
+  }
+  .view-switcher {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .view-btn {
+    flex: 1;
+    justify-content: center;
+    padding: 8px 10px;
+    font-size: 0.74rem;
+    color: #94a3b8;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+  .view-btn.active {
+    color: #f8fafc;
+    background: rgba(59, 130, 246, 0.18);
+    border-color: rgba(96, 165, 250, 0.22);
+  }
+  .panel-stack {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+  }
+  .panel {
+    display: none;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .panel.active {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .transcript-tools {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+  }
+  .card {
+    background: rgba(13, 16, 24, 0.92);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .panel .field textarea {
+    min-height: 0;
+  }
+  .transcript-panel #transcription {
+    min-height: 240px;
+  }
+  .transcript-panel #enhanced {
+    min-height: 150px;
+  }
+  .config-panel .settings-panel {
+    display: flex;
+    flex: 1;
+    padding: 12px;
+    border-color: rgba(124, 58, 237, 0.24);
+    grid-template-rows: none;
+  }
+  .config-panel .settings-inner {
+    flex: 1;
+  }
+  .lab-shell .lab-panel {
+    display: flex;
+    flex: 1;
+    max-height: none;
+  }
+  .lab-sample-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .lab-mini-btn {
+    padding: 4px 8px;
+    font-size: 0.66rem;
+    color: #cbd5e1;
+    background: #172033;
+  }
+  .lab-mini-btn:hover:not(:disabled) {
+    background: #22304b;
+  }
+  .popup.compact-mode .view-switcher,
+  .popup.compact-mode .config-panel,
+  .popup.compact-mode .lab-shell {
+    display: none !important;
+  }
+  .popup.compact-mode .panel-stack,
+  .popup.compact-mode .transcript-panel {
+    display: flex !important;
+  }
 </style>
 </head>
 <body>
@@ -548,98 +773,147 @@
   </div>
 
   <div class="body">
-    <div class="fields">
-      <div class="field">
-        <div class="label-row">
-          <label>Transcription</label>
-          <span class="live-badge" id="liveBadge">Live Draft</span>
-        </div>
-        <div class="tone-row" id="toneRow">
-          <span class="tone-chip accent calm" id="toneLabelChip">Calm</span>
-          <span class="tone-chip" id="tonePitchChip">Pitch level</span>
-          <span class="tone-chip" id="toneEmphasisChip">Emphasis 0%</span>
-        </div>
-        <div class="raw-note" id="rawNote"></div>
-        <textarea id="transcription" placeholder="Click Record and start speaking..."></textarea>
-      </div>
+    <div class="view-switcher" id="viewSwitcher">
+      <button class="view-btn active" type="button" data-view="transcript">Transcript</button>
+      <button class="view-btn" type="button" data-view="lab">Tonality Lab</button>
+      <button class="view-btn" type="button" data-view="config">Config</button>
     </div>
 
-    <div class="settings-panel" id="settingsPanel">
-      <div class="settings-inner">
-        <div class="toggle-field">
-          <div class="toggle-copy">
-            <strong>Wake Phrase</strong>
-            <span id="wakePhraseHint">Always listen for your wake phrase and start quick-record automatically.</span>
+    <div class="panel-stack">
+      <section class="panel transcript-panel active" id="transcriptPanel" data-panel="transcript">
+        <div class="fields card">
+          <div class="field">
+            <div class="label-row">
+              <label>Transcription</label>
+              <span class="live-badge" id="liveBadge">Live Draft</span>
+            </div>
+            <div class="tone-row" id="toneRow">
+              <span class="tone-chip accent calm" id="toneLabelChip">Calm</span>
+              <span class="tone-chip" id="tonePitchChip">Inflection neutral</span>
+              <span class="tone-chip" id="toneAttackChip">Attack smooth</span>
+              <span class="tone-chip" id="toneEmphasisChip">Intensity low</span>
+            </div>
+            <div class="raw-note" id="rawNote"></div>
+            <textarea id="transcription" placeholder="Click Record and start speaking..."></textarea>
           </div>
-          <label class="switch">
-            <input type="checkbox" id="wakeToggle">
-            <span class="slider"></span>
-          </label>
         </div>
 
-        <div class="field">
-          <label for="wakePhraseInput">Wake phrase text</label>
-          <input id="wakePhraseInput" type="text" placeholder="Hey Jenkins" autocomplete="off" spellcheck="false">
-        </div>
-
-        <div class="field">
-          <label for="customDictionaryInput">Custom dictionary</label>
-          <textarea id="customDictionaryInput" class="settings-textarea" placeholder="{clod} claude&#10;{innate in} n8n&#10;anthropic | clawed => Claude"></textarea>
-        </div>
-
-        <div class="toggle-field">
-          <div class="toggle-copy">
-            <strong>Press Enter After Paste</strong>
-            <span>After quick-paste inserts the transcription, automatically press Enter in the target text box.</span>
+        <div class="transcript-tools card">
+          <div class="controls">
+            <button id="recordBtn">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg>
+              Record
+            </button>
+            <button id="stopBtn" disabled>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+              Stop
+            </button>
+            <div class="meter-wrap"><div id="meter"></div></div>
           </div>
-          <label class="switch">
-            <input type="checkbox" id="autoEnterToggle">
-            <span class="slider"></span>
-          </label>
-        </div>
 
-        <div class="controls">
-          <button id="recordBtn">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg>
-            Record
-          </button>
-          <button id="stopBtn" disabled>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
-            Stop
-          </button>
-          <div class="meter-wrap"><div id="meter"></div></div>
-        </div>
+          <div class="silence-row">
+            <label for="silenceSlider">Silence</label>
+            <input type="range" id="silenceSlider" min="0" max="100" value="0">
+            <span class="silence-val" id="silenceVal">1.8s</span>
+          </div>
 
-        <div class="silence-row">
-          <label for="silenceSlider">Silence</label>
-          <input type="range" id="silenceSlider" min="0" max="100" value="0">
-          <span class="silence-val" id="silenceVal">1.8s</span>
-        </div>
+          <div class="field">
+            <label>Enhanced</label>
+            <textarea id="enhanced" placeholder="Click Enhance with AI..."></textarea>
+          </div>
 
-        <div class="field">
-          <label>Enhanced</label>
-          <textarea id="enhanced" placeholder="Click Enhance with AI..."></textarea>
+          <div class="bottom-row">
+            <select id="modelSelect">
+              <option value="mistral-nemo:latest">mistral-nemo</option>
+              <option value="llama3.1:latest">llama3.1</option>
+            </select>
+            <button id="enhanceBtn" disabled>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+              Enhance
+            </button>
+            <button class="copy-btn" id="copyRaw">Copy</button>
+            <button class="copy-btn" id="copyEnh">Copy AI</button>
+          </div>
         </div>
+      </section>
 
-        <div class="bottom-row">
-          <select id="modelSelect">
-            <option value="mistral-nemo:latest">mistral-nemo</option>
-            <option value="llama3.1:latest">llama3.1</option>
-          </select>
-          <button id="enhanceBtn" disabled>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-            </svg>
-            Enhance
-          </button>
-          <button class="copy-btn" id="copyRaw">Copy</button>
-          <button class="copy-btn" id="copyEnh">Copy AI</button>
+      <section class="panel lab-shell" id="labShell" data-panel="lab">
+        <div class="lab-panel" id="tonalityLabPanel">
+          <div class="lab-header">
+            <div class="lab-meta">
+              <span class="lab-kicker">Tonality Lab</span>
+              <strong class="lab-title" id="tonalityLabTitle">Prompt 1 of 8</strong>
+              <span class="lab-note" id="tonalityLabNote">Keep your mic gain fixed, stay the same distance from the mic, and read the phrase below.</span>
+            </div>
+            <span class="tone-chip accent calm" id="tonalityLabTargetChip">Target Calm</span>
+          </div>
+          <div class="lab-phrase" id="tonalityLabPhrase">"okay"</div>
+          <div class="lab-summary" id="tonalityLabSummary">Run a few baseline takes first. If calm speech still lands hot, the mic gain or AGC is probably part of the problem.</div>
+          <div class="lab-actions">
+            <button type="button" id="tonalityLabPrevBtn">Prev Prompt</button>
+            <button type="button" id="tonalityLabNextBtn">Next Prompt</button>
+            <button type="button" id="tonalityLabOpenBtn">Open Clips Folder</button>
+            <button type="button" id="tonalityLabCopyBtn">Copy JSON</button>
+            <button type="button" id="tonalityLabClearBtn">Clear Samples</button>
+          </div>
+          <div class="lab-samples" id="tonalityLabSamples"></div>
         </div>
+      </section>
 
-        <div class="bottom-row">
-          <button class="danger-btn" id="quitBtn">Quit App</button>
+      <section class="panel config-panel" id="configPanel" data-panel="config">
+        <div class="settings-panel open" id="settingsPanel">
+          <div class="settings-inner">
+            <div class="toggle-field">
+              <div class="toggle-copy">
+                <strong>Wake Phrase</strong>
+                <span id="wakePhraseHint">Always listen for your wake phrase and start quick-record automatically.</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="wakeToggle">
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="field">
+              <label for="wakePhraseInput">Wake phrase text</label>
+              <input id="wakePhraseInput" type="text" placeholder="Hey Jenkins" autocomplete="off" spellcheck="false">
+            </div>
+
+            <div class="field">
+              <label for="customDictionaryInput">Custom dictionary</label>
+              <textarea id="customDictionaryInput" class="settings-textarea" placeholder="{clod} claude&#10;{innate in} n8n&#10;anthropic | clawed => Claude"></textarea>
+            </div>
+
+            <div class="toggle-field">
+              <div class="toggle-copy">
+                <strong>Press Enter After Paste</strong>
+                <span>After quick-paste inserts the transcription, automatically press Enter in the target text box.</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="autoEnterToggle">
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="toggle-field">
+              <div class="toggle-copy">
+                <strong>Tonality Lab Capture</strong>
+                <span>Automatically save each lab take as a WAV clip and attach its path to the sample metadata.</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="tonalityLabToggle">
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="bottom-row">
+              <button class="danger-btn" id="quitBtn">Quit App</button>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
     </div>
 
     <div class="status">
@@ -656,9 +930,13 @@
 const HTTP_API = 'http://10.201.52.171:8200';
 const WS_API = 'ws://10.201.52.171:8200/ws/transcribe';
 
+const viewButtons = Array.from(document.querySelectorAll('.view-btn'));
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsPanel = document.getElementById('settingsPanel');
 const popupEl = document.querySelector('.popup');
+const transcriptPanel = document.getElementById('transcriptPanel');
+const labShell = document.getElementById('labShell');
+const configPanel = document.getElementById('configPanel');
 const recordBtn = document.getElementById('recordBtn');
 const stopBtn = document.getElementById('stopBtn');
 const enhanceBtn = document.getElementById('enhanceBtn');
@@ -671,6 +949,7 @@ const liveBadge = document.getElementById('liveBadge');
 const toneRow = document.getElementById('toneRow');
 const toneLabelChip = document.getElementById('toneLabelChip');
 const tonePitchChip = document.getElementById('tonePitchChip');
+const toneAttackChip = document.getElementById('toneAttackChip');
 const toneEmphasisChip = document.getElementById('toneEmphasisChip');
 const rawNote = document.getElementById('rawNote');
 const wakeToggle = document.getElementById('wakeToggle');
@@ -678,8 +957,88 @@ const wakePhraseInput = document.getElementById('wakePhraseInput');
 const wakePhraseHint = document.getElementById('wakePhraseHint');
 const customDictionaryInput = document.getElementById('customDictionaryInput');
 const autoEnterToggle = document.getElementById('autoEnterToggle');
+const tonalityLabToggle = document.getElementById('tonalityLabToggle');
+const tonalityLabPanel = document.getElementById('tonalityLabPanel');
+const tonalityLabTitle = document.getElementById('tonalityLabTitle');
+const tonalityLabNote = document.getElementById('tonalityLabNote');
+const tonalityLabTargetChip = document.getElementById('tonalityLabTargetChip');
+const tonalityLabPhrase = document.getElementById('tonalityLabPhrase');
+const tonalityLabSummary = document.getElementById('tonalityLabSummary');
+const tonalityLabSamplesEl = document.getElementById('tonalityLabSamples');
+const tonalityLabPrevBtn = document.getElementById('tonalityLabPrevBtn');
+const tonalityLabNextBtn = document.getElementById('tonalityLabNextBtn');
+const tonalityLabOpenBtn = document.getElementById('tonalityLabOpenBtn');
+const tonalityLabCopyBtn = document.getElementById('tonalityLabCopyBtn');
+const tonalityLabClearBtn = document.getElementById('tonalityLabClearBtn');
 const previewActionBtn = document.getElementById('previewActionBtn');
 const quitBtn = document.getElementById('quitBtn');
+
+const TONALITY_LAB_PROMPTS = [
+  {
+    id: 'okay-calm',
+    phrase: 'okay',
+    targetLabel: 'Calm',
+    toneClass: 'calm',
+    group: 'baseline',
+    instruction: 'Say it flat and conversationally. Do not lean into the mic.',
+  },
+  {
+    id: 'okay-sharp',
+    phrase: 'okay',
+    targetLabel: 'Sharp Attack',
+    toneClass: 'punchy',
+    group: 'attack',
+    instruction: 'Keep the volume close to normal, but hit the first syllable sharply.',
+  },
+  {
+    id: 'okay-heated',
+    phrase: 'okay',
+    targetLabel: 'Heated',
+    toneClass: 'heated',
+    group: 'intensity',
+    instruction: 'Say it louder and irritated without moving closer to the mic.',
+  },
+  {
+    id: 'really-flat',
+    phrase: 'really',
+    targetLabel: 'Calm',
+    toneClass: 'calm',
+    group: 'baseline',
+    instruction: 'Say it flat, not like a question.',
+  },
+  {
+    id: 'really-question',
+    phrase: 'really?',
+    targetLabel: 'Questioning',
+    toneClass: 'questioning',
+    group: 'question',
+    instruction: 'Say it as a genuine question with rising pitch, not extra loudness.',
+  },
+  {
+    id: 'fuck-calm',
+    phrase: 'fuck',
+    targetLabel: 'Calm',
+    toneClass: 'calm',
+    group: 'baseline',
+    instruction: 'Say it like a casual aside, not emphasized.',
+  },
+  {
+    id: 'fuck-heated',
+    phrase: 'fuck',
+    targetLabel: 'Heated',
+    toneClass: 'heated',
+    group: 'intensity',
+    instruction: 'Say it controlled and irritated, but not full-volume shouting.',
+  },
+  {
+    id: 'fuck-shouted',
+    phrase: 'FUCK',
+    targetLabel: 'Shouted',
+    toneClass: 'shouted',
+    group: 'intensity',
+    instruction: 'Actually shout it once from the same mic distance.',
+  },
+];
 
 let audioCtx = null;
 let analyser = null;
@@ -699,6 +1058,13 @@ let currentCustomDictionaryText = '';
 let finalizeStopTimer = null;
 let currentWindowMode = 'full';
 let currentRawTranscript = '';
+let activeFullView = 'transcript';
+let tonalityLabEnabled = false;
+let tonalityLabPromptIndex = 0;
+let tonalityLabSamples = [];
+let recordedPcmChunks = [];
+let recordedSampleRate = 0;
+let recordedChannels = 1;
 
 function normalizeTranscriptPayload(payload) {
   if (payload && typeof payload === 'object') {
@@ -727,6 +1093,288 @@ function formatToneLabel(tone) {
   return tone.label.charAt(0).toUpperCase() + tone.label.slice(1);
 }
 
+function formatWordLabel(value, fallback) {
+  const text = String(value || '').trim();
+  if (!text) return fallback;
+  return text
+    .split(/\s+/)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function safeParseJSON(value, fallback) {
+  try {
+    return JSON.parse(value);
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function normalizeFullView(value) {
+  if (value === 'lab' || value === 'config') return value;
+  return 'transcript';
+}
+
+function setActiveFullView(view, options) {
+  const { persist = true, notify = true } = options || {};
+  activeFullView = normalizeFullView(view);
+  transcriptPanel.classList.toggle('active', activeFullView === 'transcript');
+  labShell.classList.toggle('active', activeFullView === 'lab');
+  configPanel.classList.toggle('active', activeFullView === 'config');
+  viewButtons.forEach(button => {
+    button.classList.toggle('active', button.dataset.view === activeFullView);
+  });
+  if (persist) {
+    localStorage.setItem('fullWindowView', activeFullView);
+  }
+  if (notify && window.electronAPI && window.electronAPI.setFullWindowView && currentWindowMode === 'full') {
+    window.electronAPI.setFullWindowView(activeFullView);
+  }
+  renderTonalityLab();
+}
+
+function resetRecordedAudio() {
+  recordedPcmChunks = [];
+  recordedSampleRate = 0;
+  recordedChannels = 1;
+}
+
+function pcmChunksToWavBytes(chunks, sampleRate, channels) {
+  const totalDataBytes = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+  const wavBytes = new Uint8Array(44 + totalDataBytes);
+  const view = new DataView(wavBytes.buffer);
+  const writeASCII = (offset, value) => {
+    for (let index = 0; index < value.length; index += 1) {
+      view.setUint8(offset + index, value.charCodeAt(index));
+    }
+  };
+
+  writeASCII(0, 'RIFF');
+  view.setUint32(4, 36 + totalDataBytes, true);
+  writeASCII(8, 'WAVE');
+  writeASCII(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * channels * 2, true);
+  view.setUint16(32, channels * 2, true);
+  view.setUint16(34, 16, true);
+  writeASCII(36, 'data');
+  view.setUint32(40, totalDataBytes, true);
+
+  let offset = 44;
+  chunks.forEach(chunk => {
+    wavBytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  });
+
+  return wavBytes;
+}
+
+function clampTonalityLabPromptIndex(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.min(TONALITY_LAB_PROMPTS.length - 1, Math.round(numeric)));
+}
+
+function currentTonalityLabPrompt() {
+  return TONALITY_LAB_PROMPTS[tonalityLabPromptIndex] || TONALITY_LAB_PROMPTS[0];
+}
+
+function tonalitySamplesForPrompt(promptId) {
+  return tonalityLabSamples.filter(sample => sample.prompt_id === promptId);
+}
+
+function averageMetric(samples, key) {
+  const values = samples
+    .map(sample => Number(sample && sample.tone && sample.tone[key]))
+    .filter(value => Number.isFinite(value));
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function escapeHTML(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatLabTimestamp(iso) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+}
+
+function summarizeTonalityLab(samples) {
+  if (!tonalityLabEnabled) {
+    return 'Enable Tonality Lab Capture in Config, then run a few calm takes first. Each take will save a WAV clip so we can compare the audio against the metrics.';
+  }
+
+  if (!samples.length) {
+    return 'Run 2 to 3 calm takes first. If those already look hot, the mic gain or AGC is probably part of the problem.';
+  }
+
+  const notes = [];
+  const baseline = samples.filter(sample => sample.prompt_group === 'baseline' && sample.tone);
+  const question = samples.filter(sample => sample.prompt_group === 'question' && sample.tone);
+  const intensity = samples.filter(sample => sample.prompt_group === 'intensity' && sample.tone);
+
+  if (baseline.length) {
+    const avgPeak = averageMetric(baseline, 'peak_level');
+    const avgAttack = averageMetric(baseline, 'attack_score');
+    const avgEmphasis = averageMetric(baseline, 'emphasis');
+    if (avgPeak >= 0.55 || avgEmphasis >= 0.56) {
+      notes.push('Calm takes are still reading hot, so mic gain or automatic gain control may be lifting the whole signal.');
+    } else {
+      notes.push('Calm takes are staying in a usable range, which makes threshold tuning easier.');
+    }
+    if (avgAttack >= 0.48) {
+      notes.push('Calm takes still look sharp on attack, so the front-edge threshold is probably too low or the mic is spiking every onset.');
+    }
+  }
+
+  if (question.length) {
+    const risingCount = question.filter(sample => {
+      const inflection = String(sample.tone && sample.tone.inflection || '');
+      const trend = String(sample.tone && sample.tone.pitch_trend || '');
+      return inflection === 'questioning' || inflection === 'rising' || trend === 'rising';
+    }).length;
+    if (risingCount === 0) {
+      notes.push('Question takes are not reading as rising yet, so pitch weighting may be too weak.');
+    } else if (risingCount < question.length) {
+      notes.push('Question takes are partially separating, which means pitch is helping but not consistently enough yet.');
+    }
+  }
+
+  if (intensity.length) {
+    const loudCount = intensity.filter(sample => {
+      const label = String(sample.tone && sample.tone.label || '');
+      return label === 'heated' || label === 'shouted';
+    }).length;
+    if (loudCount === 0) {
+      notes.push('Heated takes are not separating from calm takes yet, so the intensity thresholds still need work.');
+    }
+  }
+
+  return notes.slice(0, 3).join(' ');
+}
+
+function renderTonalityLab() {
+  const visible = currentWindowMode === 'full' && activeFullView === 'lab';
+  tonalityLabPanel.className = 'lab-panel' + (visible ? ' visible' : '');
+  tonalityLabToggle.checked = tonalityLabEnabled;
+  if (!visible) return;
+
+  const prompt = currentTonalityLabPrompt();
+  const promptSamples = tonalitySamplesForPrompt(prompt.id);
+  tonalityLabTitle.textContent = `Prompt ${tonalityLabPromptIndex + 1} of ${TONALITY_LAB_PROMPTS.length} · ${promptSamples.length} take${promptSamples.length === 1 ? '' : 's'}`;
+  tonalityLabNote.textContent = prompt.instruction;
+  tonalityLabPhrase.textContent = `"${prompt.phrase}"`;
+  tonalityLabTargetChip.className = 'tone-chip accent ' + prompt.toneClass;
+  tonalityLabTargetChip.textContent = 'Target ' + prompt.targetLabel;
+  tonalityLabSummary.textContent = summarizeTonalityLab(tonalityLabSamples);
+  tonalityLabPrevBtn.disabled = tonalityLabPromptIndex <= 0;
+  tonalityLabNextBtn.disabled = tonalityLabPromptIndex >= TONALITY_LAB_PROMPTS.length - 1;
+
+  if (!promptSamples.length) {
+    tonalityLabSamplesEl.innerHTML = '<div class="lab-empty">No takes for this prompt yet. Read the phrase, hit Record, and stop when you are done. Do 2 to 3 takes before moving on.</div>';
+    return;
+  }
+
+  tonalityLabSamplesEl.innerHTML = promptSamples
+    .slice(-6)
+    .reverse()
+    .map((sample, index) => {
+      const tone = sample.tone || {};
+      const transcriptText = sample.text || '(no transcript)';
+      return `
+        <div class="lab-sample">
+          <div class="lab-sample-top">
+            <span class="lab-sample-label">Take ${promptSamples.length - index} · ${escapeHTML(formatWordLabel(tone.label, 'Unknown'))}</span>
+            <span class="lab-sample-time">${escapeHTML(formatLabTimestamp(sample.captured_at))}</span>
+          </div>
+          <div class="lab-sample-line">Heard: ${escapeHTML(transcriptText)}</div>
+          <div class="lab-sample-line">Clip: ${escapeHTML(sample.clip_name || 'not saved')}</div>
+          <div class="lab-sample-line">Attack ${escapeHTML(formatWordLabel(tone.attack, 'Smooth'))} · Inflection ${escapeHTML(formatWordLabel(tone.inflection || tone.pitch_trend, 'Neutral'))} · Intensity ${escapeHTML(formatWordLabel(tone.intensity, 'Low'))}</div>
+          <div class="lab-sample-line">Peak ${Number(tone.peak_level || 0).toFixed(2)} · Recent ${Number(tone.recent_level || 0).toFixed(2)} · Attack score ${Number(tone.attack_score || 0).toFixed(2)} · Emphasis ${Math.round((Number(tone.emphasis) || 0) * 100)}%</div>
+          <div class="lab-sample-actions">
+            <button type="button" class="lab-mini-btn" data-open-clips-folder>Open Folder</button>
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+}
+
+function persistTonalityLabState() {
+  localStorage.setItem('tonalityLabEnabled', tonalityLabEnabled ? '1' : '0');
+  localStorage.setItem('tonalityLabPromptIndex', String(tonalityLabPromptIndex));
+  localStorage.setItem('tonalityLabSamples', JSON.stringify(tonalityLabSamples.slice(-80)));
+}
+
+function setTonalityLabEnabled(enabled) {
+  tonalityLabEnabled = !!enabled;
+  persistTonalityLabState();
+  renderTonalityLab();
+}
+
+function moveTonalityLabPrompt(delta) {
+  tonalityLabPromptIndex = clampTonalityLabPromptIndex(tonalityLabPromptIndex + delta);
+  persistTonalityLabState();
+  renderTonalityLab();
+}
+
+async function captureTonalityLabSample(transcriptPayload, payload) {
+  if (!tonalityLabEnabled || !recordedPcmChunks.length || !recordedSampleRate) return null;
+  const prompt = currentTonalityLabPrompt();
+  const stamp = new Date();
+  const timestamp = stamp.toISOString().replace(/[:.]/g, '-');
+  const clipBytes = pcmChunksToWavBytes(recordedPcmChunks, recordedSampleRate, recordedChannels);
+  let clipMeta = null;
+  if (window.electronAPI && window.electronAPI.saveTonalityClip) {
+    clipMeta = await window.electronAPI.saveTonalityClip({
+      file_name: `${prompt.id}-${timestamp}`,
+      bytes: clipBytes.buffer,
+    });
+  }
+
+  const sample = {
+    captured_at: stamp.toISOString(),
+    prompt_id: prompt.id,
+    prompt_group: prompt.group,
+    prompt_phrase: prompt.phrase,
+    prompt_target: prompt.targetLabel,
+    text: String(transcriptPayload.text || '').trim(),
+    raw_text: String(transcriptPayload.raw_text || '').trim(),
+    duration: Number(payload && payload.duration) || 0,
+    tone: transcriptPayload.tone || null,
+    clip_name: clipMeta && clipMeta.file_name ? clipMeta.file_name : '',
+    clip_path: clipMeta && clipMeta.path ? clipMeta.path : '',
+  };
+
+  tonalityLabSamples = tonalityLabSamples.concat([
+    sample,
+  ]).slice(-80);
+  persistTonalityLabState();
+  renderTonalityLab();
+  return sample;
+}
+
+async function copyTonalityLabJSON() {
+  const payload = {
+    exported_at: new Date().toISOString(),
+    prompt_index: tonalityLabPromptIndex,
+    prompts: TONALITY_LAB_PROMPTS,
+    samples: tonalityLabSamples,
+  };
+  await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+}
+
 function updateToneUI(payload) {
   const transcript = normalizeTranscriptPayload(payload);
   const tone = transcript.tone;
@@ -738,14 +1386,16 @@ function updateToneUI(payload) {
     toneRow.className = 'tone-row visible';
     toneLabelChip.className = 'tone-chip accent ' + toneClass;
     toneLabelChip.textContent = formatToneLabel(tone);
-    tonePitchChip.textContent = 'Pitch ' + (tone.pitch_trend || 'level');
-    toneEmphasisChip.textContent = 'Emphasis ' + Math.round((Number(tone.emphasis) || 0) * 100) + '%';
+    tonePitchChip.textContent = 'Inflection ' + formatWordLabel(tone.inflection || tone.pitch_trend, 'Neutral');
+    toneAttackChip.textContent = 'Attack ' + formatWordLabel(tone.attack, 'Smooth');
+    toneEmphasisChip.textContent = 'Intensity ' + formatWordLabel(tone.intensity, 'Low');
   } else {
     toneRow.className = 'tone-row';
     toneLabelChip.className = 'tone-chip accent calm';
     toneLabelChip.textContent = 'Calm';
-    tonePitchChip.textContent = 'Pitch level';
-    toneEmphasisChip.textContent = 'Emphasis 0%';
+    tonePitchChip.textContent = 'Inflection Neutral';
+    toneAttackChip.textContent = 'Attack Smooth';
+    toneEmphasisChip.textContent = 'Intensity Low';
   }
 
   if (currentRawTranscript && displayText && currentRawTranscript !== displayText) {
@@ -811,16 +1461,23 @@ function updateWakePhraseCopy() {
 
 function applySettingsOpen(open) {
   settingsOpen = !!open;
-  settingsPanel.className = 'settings-panel' + (settingsOpen ? ' open' : '');
   localStorage.setItem('settingsOpen', settingsOpen ? '1' : '0');
+  if (settingsOpen && currentWindowMode === 'full') {
+    setActiveFullView('config', { persist: true, notify: true });
+  }
 }
 
-function applyWindowMode(mode) {
+function applyWindowMode(mode, view) {
   currentWindowMode = mode === 'compact' ? 'compact' : 'full';
   popupEl.classList.toggle('compact-mode', currentWindowMode === 'compact');
   if (currentWindowMode === 'compact') {
-    applySettingsOpen(false);
+    transcriptPanel.classList.add('active');
+    labShell.classList.remove('active');
+    configPanel.classList.remove('active');
+  } else {
+    setActiveFullView(normalizeFullView(view || activeFullView), { persist: true, notify: false });
   }
+  renderTonalityLab();
 }
 
 function setPreviewAction(mode) {
@@ -959,6 +1616,7 @@ async function startRecording() {
   transcription.value = '';
   currentRawTranscript = '';
   enhanced.value = '';
+  resetRecordedAudio();
   updateToneUI(null);
   setLiveMode(true);
 
@@ -980,7 +1638,7 @@ async function startRecording() {
     }
   });
 
-  ws.addEventListener('message', event => {
+  ws.addEventListener('message', async event => {
     const payload = JSON.parse(event.data);
     if (payload.type === 'partial') {
       const transcriptPayload = updateToneUI(payload);
@@ -1000,10 +1658,13 @@ async function startRecording() {
       transcription.value = finalText;
       transcription.scrollTop = transcription.scrollHeight;
       setLiveMode(false);
+      const savedSample = await captureTonalityLabSample(transcriptPayload, payload);
+      resetRecordedAudio();
       const lang = payload.language ? '  ' + payload.language.toUpperCase() : '';
       const dur = payload.duration ? '  ' + payload.duration + 's' : '';
       const toneLabel = transcriptPayload.tone ? ' · ' + formatToneLabel(transcriptPayload.tone) : '';
-      setStatus('Done' + toneLabel + lang + dur, 'ready');
+      const labSaved = savedSample && savedSample.clip_name ? ` · clip ${savedSample.clip_name}` : tonalityLabEnabled ? ' · saved to Tonality Lab' : '';
+      setStatus('Done' + toneLabel + lang + dur + labSaved, 'ready');
       recordBtn.disabled = false;
       stopBtn.disabled = true;
       enhanceBtn.disabled = !finalText;
@@ -1017,6 +1678,7 @@ async function startRecording() {
         transcription.value = liveDraft;
         enhanceBtn.disabled = !liveDraft.trim();
         setLiveMode(false);
+        resetRecordedAudio();
         setStatus('Draft ready', 'ready');
         recordBtn.disabled = false;
         stopBtn.disabled = true;
@@ -1024,6 +1686,7 @@ async function startRecording() {
         return;
       }
       setLiveMode(false);
+      resetRecordedAudio();
       setStatus('Error: ' + payload.message, 'error');
       recordBtn.disabled = false;
       stopBtn.disabled = true;
@@ -1037,6 +1700,8 @@ async function startRecording() {
   });
 
   audioCtx = new AudioContext();
+  recordedSampleRate = audioCtx.sampleRate || 48000;
+  recordedChannels = 1;
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = 256;
   source = audioCtx.createMediaStreamSource(stream);
@@ -1051,7 +1716,9 @@ async function startRecording() {
 
   processor.onaudioprocess = event => {
     const input = event.inputBuffer.getChannelData(0);
-    sendAudioFrame(floatTo16BitPCM(input));
+    const pcmFrame = floatTo16BitPCM(input);
+    recordedPcmChunks.push(new Uint8Array(pcmFrame.slice(0)));
+    sendAudioFrame(pcmFrame);
   };
 
   meterRAF = requestAnimationFrame(updateMeter);
@@ -1079,6 +1746,7 @@ function stopRecording() {
 
     closeSocket();
     setLiveMode(false);
+    resetRecordedAudio();
     recordBtn.disabled = false;
     setStatus(liveDraft ? 'Draft ready' : 'Error', liveDraft ? 'ready' : 'error');
   }, 260);
@@ -1143,7 +1811,10 @@ quitBtn.addEventListener('click', () => {
 recordBtn.addEventListener('click', startRecording);
 stopBtn.addEventListener('click', stopRecording);
 enhanceBtn.addEventListener('click', enhanceText);
-settingsBtn.addEventListener('click', () => applySettingsOpen(!settingsOpen));
+settingsBtn.addEventListener('click', () => setActiveFullView('config'));
+viewButtons.forEach(button => {
+  button.addEventListener('click', () => setActiveFullView(button.dataset.view));
+});
 previewActionBtn.addEventListener('click', () => {
   if (window.electronAPI && window.electronAPI.dismissPreview) {
     window.electronAPI.dismissPreview();
@@ -1151,7 +1822,12 @@ previewActionBtn.addEventListener('click', () => {
 });
 
 const savedSettingsOpen = localStorage.getItem('settingsOpen') === '1';
+activeFullView = normalizeFullView(localStorage.getItem('fullWindowView') || 'transcript');
 applySettingsOpen(savedSettingsOpen);
+tonalityLabEnabled = localStorage.getItem('tonalityLabEnabled') === '1';
+tonalityLabPromptIndex = clampTonalityLabPromptIndex(localStorage.getItem('tonalityLabPromptIndex') || '0');
+tonalityLabSamples = safeParseJSON(localStorage.getItem('tonalityLabSamples') || '[]', []);
+setActiveFullView(activeFullView, { persist: false, notify: false });
 
 const silenceSlider = document.getElementById('silenceSlider');
 const silenceVal = document.getElementById('silenceVal');
@@ -1197,7 +1873,13 @@ if (window.electronAPI && window.electronAPI.onInjectText) {
 
 if (window.electronAPI && window.electronAPI.onWindowModeState) {
   window.electronAPI.onWindowModeState(payload => {
-    applyWindowMode(payload && payload.mode);
+    applyWindowMode(payload && payload.mode, payload && payload.view);
+  });
+}
+
+if (window.electronAPI && window.electronAPI.onWindowViewState) {
+  window.electronAPI.onWindowViewState(payload => {
+    setActiveFullView(payload && payload.view, { persist: true, notify: false });
   });
 }
 
@@ -1233,7 +1915,6 @@ if (window.electronAPI && window.electronAPI.onQuickSessionState) {
     }
 
     if (stage === 'finalizing') {
-      applySettingsOpen(false);
       setPreviewAction(null);
       setLiveMode(true);
       setStatus('Finalizing preview before paste...', 'busy');
@@ -1241,7 +1922,6 @@ if (window.electronAPI && window.electronAPI.onQuickSessionState) {
     }
 
     if (stage === 'preview') {
-      applySettingsOpen(false);
       setLiveMode(false);
       setStatus('Previewing final text before paste...', 'ready');
       setPreviewAction('paste');
@@ -1351,6 +2031,50 @@ autoEnterToggle.addEventListener('change', () => {
     window.electronAPI.setAutoEnter(enabled);
   }
   setStatus(enabled ? 'Paste + Enter enabled' : 'Paste only enabled', 'ready');
+});
+
+tonalityLabToggle.addEventListener('change', () => {
+  setTonalityLabEnabled(tonalityLabToggle.checked);
+  setStatus(tonalityLabEnabled ? 'Tonality Lab enabled' : 'Tonality Lab disabled', 'ready');
+});
+
+tonalityLabPrevBtn.addEventListener('click', () => moveTonalityLabPrompt(-1));
+tonalityLabNextBtn.addEventListener('click', () => moveTonalityLabPrompt(1));
+tonalityLabOpenBtn.addEventListener('click', async () => {
+  try {
+    if (window.electronAPI && window.electronAPI.openTonalityLabFolder) {
+      await window.electronAPI.openTonalityLabFolder();
+      setStatus('Tonality Lab folder opened', 'ready');
+    }
+  } catch (error) {
+    setStatus('Open folder failed: ' + error.message, 'error');
+  }
+});
+tonalityLabCopyBtn.addEventListener('click', async () => {
+  try {
+    await copyTonalityLabJSON();
+    setStatus('Tonality Lab JSON copied', 'ready');
+  } catch (error) {
+    setStatus('Copy failed: ' + error.message, 'error');
+  }
+});
+tonalityLabClearBtn.addEventListener('click', () => {
+  tonalityLabSamples = [];
+  persistTonalityLabState();
+  renderTonalityLab();
+  setStatus('Tonality Lab samples cleared', 'ready');
+});
+
+tonalityLabSamplesEl.addEventListener('click', async event => {
+  const button = event.target.closest('[data-open-clips-folder]');
+  if (!button) return;
+  if (!window.electronAPI || !window.electronAPI.openTonalityLabFolder) return;
+  try {
+    await window.electronAPI.openTonalityLabFolder();
+    setStatus('Tonality Lab folder opened', 'ready');
+  } catch (error) {
+    setStatus('Open folder failed: ' + error.message, 'error');
+  }
 });
 
 if (window.electronAPI && window.electronAPI.onWakeModeState) {

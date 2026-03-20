@@ -17,6 +17,9 @@ Current tagged release: `v1.4.4`
 - Configurable silence timeout or fully manual stop mode
 - Ollama-powered text enhancement in the full window
 - Fast paste via `wscript.exe`
+- Guided Tonality Lab for mic-gain and prosody calibration
+- Automatic WAV clip capture for Tonality Lab takes
+- Full window split into `Transcript`, `Tonality Lab`, and `Config` sections
 
 ## Shortcuts
 
@@ -89,6 +92,13 @@ Notes:
 - Final text appears in the preview before paste
 - Paste can optionally be followed by `Enter`
 
+## Tonality Lab
+
+- Enable `Tonality Lab Capture` from `Config`
+- Use the `Tonality Lab` section to step through the guided prompt deck
+- Each saved take includes the transcript, tone metrics, and a WAV clip written to your local Tonality Lab folder
+- Use `Open Clips Folder` to inspect the raw audio clips that go with the captured metrics
+
 ## Silence Timeout
 
 The full window includes a silence slider:
@@ -99,9 +109,23 @@ The full window includes a silence slider:
 
 ## Packaging Notes
 
-Windows packaging is built from `electron-builder --win portable`.
+Canonical source and build orchestration now live on VM 105 at `/opt/stt-popup-repo`.
 
-On Linux, `electron-builder` may stop at the usual `wine` signing step after `dist/win-unpacked` has already been produced. In that case, zip `dist/win-unpacked` to create the Windows distribution artifact.
+The canonical build flow on the VM is:
+
+```bash
+npm run build:artifacts
+```
+
+That script:
+
+- builds the Linux AppImage
+- builds the Windows unpacked app
+- zips `dist/win-unpacked` into `dist/STT-Popup-Windows.zip`
+- stages the finished artifacts into `/opt/stt-popup-dist`
+- uses local `npm` when available, or the repo's Docker builder when the VM host itself does not have Node installed
+
+If a macOS artifact is ever present in `dist/`, the same script will normalize it into `/opt/stt-popup-dist/STT-Popup-macOS.*`. The Linux VM does not fabricate macOS binaries on its own; those still require a macOS builder.
 
 ## Files
 
