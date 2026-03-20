@@ -314,6 +314,12 @@
   }
   input[type="text"]:focus,
   textarea:focus { outline: none; border-color: #7c3aed; }
+  .settings-textarea {
+    min-height: 84px;
+    max-height: 84px;
+    font-size: 0.78rem;
+    line-height: 1.45;
+  }
 
   .bottom-row {
     display: flex;
@@ -482,6 +488,11 @@
           <input id="wakePhraseInput" type="text" placeholder="Hey Jenkins" autocomplete="off" spellcheck="false">
         </div>
 
+        <div class="field">
+          <label for="customDictionaryInput">Custom dictionary</label>
+          <textarea id="customDictionaryInput" class="settings-textarea" placeholder="{clod} claude&#10;{innate in} n8n&#10;anthropic | clawed => Claude"></textarea>
+        </div>
+
         <div class="toggle-field">
           <div class="toggle-copy">
             <strong>Press Enter After Paste</strong>
@@ -565,6 +576,7 @@ const liveBadge = document.getElementById('liveBadge');
 const wakeToggle = document.getElementById('wakeToggle');
 const wakePhraseInput = document.getElementById('wakePhraseInput');
 const wakePhraseHint = document.getElementById('wakePhraseHint');
+const customDictionaryInput = document.getElementById('customDictionaryInput');
 const autoEnterToggle = document.getElementById('autoEnterToggle');
 const previewActionBtn = document.getElementById('previewActionBtn');
 const quitBtn = document.getElementById('quitBtn');
@@ -583,6 +595,7 @@ let activeLanguage = 'en';
 let settingsOpen = false;
 let quickPreviewStage = 'idle';
 let currentWakePhrase = 'Hey Jenkins';
+let currentCustomDictionaryText = '';
 let finalizeStopTimer = null;
 
 function sanitizeWakePhrase(value) {
@@ -590,6 +603,45 @@ function sanitizeWakePhrase(value) {
     .replace(/\s+/g, ' ')
     .trim();
   return normalized || 'Hey Jenkins';
+}
+
+function sanitizeCustomDictionaryText(value) {
+  return String(value || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
+}
+
+function parseCustomDictionary(text) {
+  return sanitizeCustomDictionaryText(text)
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => {
+      if (line.includes('=>')) {
+        const [left, ...rightParts] = line.split('=>');
+        return { left: left.trim(), right: rightParts.join('=>').trim() };
+      }
+
+      const braceMatch = line.match(/^\{(.+?)\}\s+(.+)$/);
+      if (braceMatch) {
+        return { left: braceMatch[1].trim(), right: braceMatch[2].trim() };
+      }
+
+      return null;
+    })
+    .filter(Boolean)
+    .map(rule => {
+      const matches = rule.left
+        .split('|')
+        .map(value => value.trim())
+        .filter(Boolean);
+      const replacement = rule.right.trim();
+      if (!matches.length || !replacement) {
+        return null;
+      }
+      return { matches, replacement };
+    })
+    .filter(Boolean);
 }
 
 function updateWakePhraseCopy() {
@@ -742,6 +794,7 @@ async function startRecording() {
   ws = new WebSocket(WS_API);
   ws.binaryType = 'arraybuffer';
   ws.addEventListener('open', () => {
+    const customDictionary = parseCustomDictionary(currentCustomDictionaryText);
     ws.send(JSON.stringify({
       type: 'start',
       mode: 'dictation',
@@ -749,6 +802,7 @@ async function startRecording() {
       channels: 1,
       language: 'en',
       partial_interval_ms: 800,
+      custom_dictionary: customDictionary,
     }));
     while (pendingFrames.length > 0 && ws.readyState === WebSocket.OPEN) {
       ws.send(pendingFrames.shift());
@@ -1048,6 +1102,13 @@ if (window.electronAPI && window.electronAPI.setWakePhrase) {
   window.electronAPI.setWakePhrase(savedWakePhrase);
 }
 
+const savedCustomDictionary = sanitizeCustomDictionaryText(localStorage.getItem('customDictionaryText') || '');
+currentCustomDictionaryText = savedCustomDictionary;
+customDictionaryInput.value = savedCustomDictionary;
+if (window.electronAPI && window.electronAPI.setCustomDictionary) {
+  window.electronAPI.setCustomDictionary(savedCustomDictionary);
+}
+
 const savedAutoEnter = localStorage.getItem('autoEnterEnabled') === '1';
 autoEnterToggle.checked = savedAutoEnter;
 if (window.electronAPI && window.electronAPI.setAutoEnter) {
@@ -1084,6 +1145,21 @@ wakePhraseInput.addEventListener('keydown', event => {
   }
 });
 
+function commitCustomDictionary() {
+  const value = sanitizeCustomDictionaryText(customDictionaryInput.value);
+  currentCustomDictionaryText = value;
+  customDictionaryInput.value = value;
+  localStorage.setItem('customDictionaryText', value);
+  if (window.electronAPI && window.electronAPI.setCustomDictionary) {
+    window.electronAPI.setCustomDictionary(value);
+  }
+  const ruleCount = parseCustomDictionary(value).length;
+  setStatus(ruleCount ? `Dictionary updated (${ruleCount} rules)` : 'Dictionary cleared', 'ready');
+}
+
+customDictionaryInput.addEventListener('change', commitCustomDictionary);
+customDictionaryInput.addEventListener('blur', commitCustomDictionary);
+
 autoEnterToggle.addEventListener('change', () => {
   const enabled = autoEnterToggle.checked;
   localStorage.setItem('autoEnterEnabled', enabled ? '1' : '0');
@@ -1107,6 +1183,15 @@ if (window.electronAPI && window.electronAPI.onWakePhraseState) {
     wakePhraseInput.value = phrase;
     localStorage.setItem('wakePhrase', phrase);
     updateWakePhraseCopy();
+  });
+}
+
+if (window.electronAPI && window.electronAPI.onCustomDictionaryState) {
+  window.electronAPI.onCustomDictionaryState(payload => {
+    const text = sanitizeCustomDictionaryText(payload && payload.text);
+    currentCustomDictionaryText = text;
+    customDictionaryInput.value = text;
+    localStorage.setItem('customDictionaryText', text);
   });
 }
 

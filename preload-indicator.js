@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('indicatorAPI', {
   onSetDraggable:    (cb) => ipcRenderer.on('set-draggable',   (_, v)  => cb(v)),
   onSetWakeMode:     (cb) => ipcRenderer.on('set-wake-mode',   (_, v)  => cb(v)),
   onSetWakePhrase:   (cb) => ipcRenderer.on('set-wake-phrase', (_, v)  => cb(v)),
+  onSetCustomDictionary: (cb) => ipcRenderer.on('set-custom-dictionary', (_, v) => cb(v)),
   transcriptionReady: (text) => ipcRenderer.send('transcription-ready', text),
   transcriptionLive:  (payload) => ipcRenderer.send('transcription-live', payload),
   transcriptionError: ()     => ipcRenderer.send('transcription-error'),

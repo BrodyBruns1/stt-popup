@@ -30,6 +30,7 @@ let isRecording  = false;
 let wakeModeEnabled = false;
 let autoPressEnter = false;
 let wakePhrase = 'Hey Jenkins';
+let customDictionaryText = '';
 const QUICK_PASTE_DELAY_MS = 650;
 let pendingQuickPasteTimer = null;
 let pendingQuickPasteText = '';
@@ -39,6 +40,12 @@ function sanitizeWakePhrase(value) {
     .replace(/\s+/g, ' ')
     .trim();
   return normalized || 'Hey Jenkins';
+}
+
+function sanitizeCustomDictionaryText(value) {
+  return String(value || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
 }
 
 // ── Tray icon ────────────────────────────────────────────────────────────────
@@ -312,6 +319,12 @@ ipcMain.on('set-wake-phrase', (_, phrase) => {
   wakePhrase = sanitizeWakePhrase(phrase);
   if (indicatorWin) indicatorWin.webContents.send('set-wake-phrase', wakePhrase);
   if (fullWin) fullWin.webContents.send('wake-phrase-state', { phrase: wakePhrase });
+});
+
+ipcMain.on('set-custom-dictionary', (_, text) => {
+  customDictionaryText = sanitizeCustomDictionaryText(text);
+  if (indicatorWin) indicatorWin.webContents.send('set-custom-dictionary', customDictionaryText);
+  if (fullWin) fullWin.webContents.send('custom-dictionary-state', { text: customDictionaryText });
 });
 
 ipcMain.on('set-auto-enter', (_, enabled) => {

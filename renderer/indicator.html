@@ -190,6 +190,7 @@ let dragOriginY = 0;
 let wakeModeEnabled = false;
 let wakeReconnectTimer = null;
 let wakePhrase = 'Hey Jenkins';
+let customDictionaryText = '';
 let wakeRecentTranscripts = [];
 let finalizeStopTimer = null;
 
@@ -211,6 +212,45 @@ function sanitizeWakePhrase(value) {
     .replace(/\s+/g, ' ')
     .trim();
   return normalized || 'Hey Jenkins';
+}
+
+function sanitizeCustomDictionaryText(value) {
+  return String(value || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
+}
+
+function parseCustomDictionary(text) {
+  return sanitizeCustomDictionaryText(text)
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => {
+      if (line.includes('=>')) {
+        const [left, ...rightParts] = line.split('=>');
+        return { left: left.trim(), right: rightParts.join('=>').trim() };
+      }
+
+      const braceMatch = line.match(/^\{(.+?)\}\s+(.+)$/);
+      if (braceMatch) {
+        return { left: braceMatch[1].trim(), right: braceMatch[2].trim() };
+      }
+
+      return null;
+    })
+    .filter(Boolean)
+    .map(rule => {
+      const matches = rule.left
+        .split('|')
+        .map(value => value.trim())
+        .filter(Boolean);
+      const replacement = rule.right.trim();
+      if (!matches.length || !replacement) {
+        return null;
+      }
+      return { matches, replacement };
+    })
+    .filter(Boolean);
 }
 
 function wakePromptText() {
@@ -507,6 +547,7 @@ function openWakeSocket() {
   ws.binaryType = 'arraybuffer';
 
   wakeSocket.addEventListener('open', () => {
+    const customDictionary = parseCustomDictionary(customDictionaryText);
     wakeSocket.send(JSON.stringify({
       type: 'start',
       mode: 'wake',
@@ -515,6 +556,7 @@ function openWakeSocket() {
       channels: 1,
       language: 'en',
       partial_interval_ms: WAKE_PARTIAL_INTERVAL_MS,
+      custom_dictionary: customDictionary,
     }));
     while (pendingFrames.length > 0 && wakeSocket.readyState === WebSocket.OPEN) {
       wakeSocket.send(pendingFrames.shift());
@@ -588,6 +630,7 @@ async function startRecording(fromWake) {
   ws.binaryType = 'arraybuffer';
 
   ws.addEventListener('open', () => {
+    const customDictionary = parseCustomDictionary(customDictionaryText);
     ws.send(JSON.stringify({
       type: 'start',
       mode: 'dictation',
@@ -595,6 +638,7 @@ async function startRecording(fromWake) {
       channels: 1,
       language: 'en',
       partial_interval_ms: 800,
+      custom_dictionary: customDictionary,
     }));
     while (pendingFrames.length > 0 && ws.readyState === WebSocket.OPEN) {
       ws.send(pendingFrames.shift());
@@ -694,6 +738,10 @@ window.indicatorAPI.onSetWakePhrase(value => {
   if (currentState === 'wake') {
     setState('wake', wakePromptText());
   }
+});
+
+window.indicatorAPI.onSetCustomDictionary(value => {
+  customDictionaryText = sanitizeCustomDictionaryText(value);
 });
 
 window.indicatorAPI.onSetDraggable(value => {

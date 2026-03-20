@@ -11,6 +11,7 @@ Current tagged release: `v1.4.4`
 - Live partial transcription while you are still speaking
 - Final full-pass cleanup when recording stops
 - Configurable wake phrase with always-listening wake mode
+- Custom correction dictionary for recurring STT mistakes
 - Optional `Press Enter After Paste`
 - Configurable silence timeout or fully manual stop mode
 - Ollama-powered text enhancement in the full window
@@ -57,6 +58,25 @@ Wake mode can be enabled from Settings.
 - Matching is intentionally tolerant of pauses, extra words, and small recognition drift
 - After wake detection, the popup transitions into the normal quick-record flow
 - The preview window appears with live text before paste
+
+## Custom Dictionary
+
+The settings panel includes a custom dictionary textarea for recurring recognition mistakes.
+
+Supported formats:
+
+```text
+{clod} claude
+{innate in} n8n
+anthropic | clawed => Claude
+```
+
+Notes:
+
+- One rule per line
+- Use `{heard phrase} replacement` for a quick single-phrase rule
+- Use `a | b => replacement` for multiple heard variants
+- Rules are sent with both wake-mode and dictation streams, so they affect live partials and final transcripts
 
 ## Recording Behavior
 
