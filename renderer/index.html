@@ -335,6 +335,46 @@
     display: none;
   }
   .live-badge.visible { display: inline-flex; }
+  .tone-row {
+    display: none;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .tone-row.visible {
+    display: flex;
+  }
+  .tone-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 0 9px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.03);
+    color: #94a3b8;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .tone-chip.accent { color: #e2e8f0; }
+  .tone-chip.soft { border-color: rgba(96, 165, 250, 0.24); color: #bfdbfe; }
+  .tone-chip.calm { border-color: rgba(148, 163, 184, 0.18); color: #cbd5e1; }
+  .tone-chip.steady { border-color: rgba(56, 189, 248, 0.24); color: #93c5fd; }
+  .tone-chip.punchy { border-color: rgba(245, 158, 11, 0.24); color: #fcd34d; }
+  .tone-chip.heated { border-color: rgba(248, 113, 113, 0.3); color: #fca5a5; }
+  .tone-chip.shouted { border-color: rgba(239, 68, 68, 0.4); color: #fecaca; }
+  .raw-note {
+    display: none;
+    margin-bottom: 6px;
+    color: #64748b;
+    font-size: 0.71rem;
+    line-height: 1.45;
+  }
+  .raw-note.visible {
+    display: block;
+  }
   textarea {
     flex: 1;
     background: #0d1018;
@@ -514,6 +554,12 @@
           <label>Transcription</label>
           <span class="live-badge" id="liveBadge">Live Draft</span>
         </div>
+        <div class="tone-row" id="toneRow">
+          <span class="tone-chip accent calm" id="toneLabelChip">Calm</span>
+          <span class="tone-chip" id="tonePitchChip">Pitch level</span>
+          <span class="tone-chip" id="toneEmphasisChip">Emphasis 0%</span>
+        </div>
+        <div class="raw-note" id="rawNote"></div>
         <textarea id="transcription" placeholder="Click Record and start speaking..."></textarea>
       </div>
     </div>
@@ -622,6 +668,11 @@ const enhanced = document.getElementById('enhanced');
 const modelSelect = document.getElementById('modelSelect');
 const statusText = document.getElementById('statusText');
 const liveBadge = document.getElementById('liveBadge');
+const toneRow = document.getElementById('toneRow');
+const toneLabelChip = document.getElementById('toneLabelChip');
+const tonePitchChip = document.getElementById('tonePitchChip');
+const toneEmphasisChip = document.getElementById('toneEmphasisChip');
+const rawNote = document.getElementById('rawNote');
 const wakeToggle = document.getElementById('wakeToggle');
 const wakePhraseInput = document.getElementById('wakePhraseInput');
 const wakePhraseHint = document.getElementById('wakePhraseHint');
@@ -647,6 +698,66 @@ let currentWakePhrase = 'Hey Jenkins';
 let currentCustomDictionaryText = '';
 let finalizeStopTimer = null;
 let currentWindowMode = 'full';
+let currentRawTranscript = '';
+
+function normalizeTranscriptPayload(payload) {
+  if (payload && typeof payload === 'object') {
+    const rawText = String(payload.raw_text || payload.rawText || payload.text || '').trim();
+    const expressiveText = String(payload.expressive_text || payload.expressiveText || payload.text || '').trim();
+    return {
+      ...payload,
+      text: expressiveText || rawText,
+      raw_text: rawText || expressiveText,
+      expressive_text: expressiveText || rawText,
+      tone: payload.tone || null,
+    };
+  }
+
+  const text = String(payload || '').trim();
+  return {
+    text,
+    raw_text: text,
+    expressive_text: text,
+    tone: null,
+  };
+}
+
+function formatToneLabel(tone) {
+  if (!tone || !tone.label) return 'Calm';
+  return tone.label.charAt(0).toUpperCase() + tone.label.slice(1);
+}
+
+function updateToneUI(payload) {
+  const transcript = normalizeTranscriptPayload(payload);
+  const tone = transcript.tone;
+  const displayText = transcript.text || '';
+  currentRawTranscript = transcript.raw_text || displayText;
+
+  if (tone) {
+    const toneClass = String(tone.label || 'calm').toLowerCase();
+    toneRow.className = 'tone-row visible';
+    toneLabelChip.className = 'tone-chip accent ' + toneClass;
+    toneLabelChip.textContent = formatToneLabel(tone);
+    tonePitchChip.textContent = 'Pitch ' + (tone.pitch_trend || 'level');
+    toneEmphasisChip.textContent = 'Emphasis ' + Math.round((Number(tone.emphasis) || 0) * 100) + '%';
+  } else {
+    toneRow.className = 'tone-row';
+    toneLabelChip.className = 'tone-chip accent calm';
+    toneLabelChip.textContent = 'Calm';
+    tonePitchChip.textContent = 'Pitch level';
+    toneEmphasisChip.textContent = 'Emphasis 0%';
+  }
+
+  if (currentRawTranscript && displayText && currentRawTranscript !== displayText) {
+    rawNote.className = 'raw-note visible';
+    rawNote.textContent = 'Raw transcript: ' + currentRawTranscript;
+  } else {
+    rawNote.className = 'raw-note';
+    rawNote.textContent = '';
+  }
+
+  return transcript;
+}
 
 function sanitizeWakePhrase(value) {
   const normalized = String(value || '')
@@ -846,7 +957,9 @@ async function startRecording() {
   activeLanguage = 'en';
   pendingFrames = [];
   transcription.value = '';
+  currentRawTranscript = '';
   enhanced.value = '';
+  updateToneUI(null);
   setLiveMode(true);
 
   ws = new WebSocket(WS_API);
@@ -870,23 +983,27 @@ async function startRecording() {
   ws.addEventListener('message', event => {
     const payload = JSON.parse(event.data);
     if (payload.type === 'partial') {
-      liveDraft = payload.text || liveDraft;
-      activeLanguage = payload.language || activeLanguage;
+      const transcriptPayload = updateToneUI(payload);
+      liveDraft = transcriptPayload.text || liveDraft;
+      activeLanguage = transcriptPayload.language || activeLanguage;
       if (liveDraft) transcription.value = liveDraft;
       transcription.scrollTop = transcription.scrollHeight;
-      setStatus('Recording... live draft updating', 'busy');
+      const toneLabel = transcriptPayload.tone ? ' · ' + formatToneLabel(transcriptPayload.tone) : '';
+      setStatus('Recording... live draft updating' + toneLabel, 'busy');
       return;
     }
 
     if (payload.type === 'final') {
       clearAudioGraph();
-      const finalText = (payload.text || liveDraft || '').trim();
+      const transcriptPayload = updateToneUI(payload);
+      const finalText = (transcriptPayload.text || liveDraft || '').trim();
       transcription.value = finalText;
       transcription.scrollTop = transcription.scrollHeight;
       setLiveMode(false);
       const lang = payload.language ? '  ' + payload.language.toUpperCase() : '';
       const dur = payload.duration ? '  ' + payload.duration + 's' : '';
-      setStatus('Done' + lang + dur, 'ready');
+      const toneLabel = transcriptPayload.tone ? ' · ' + formatToneLabel(transcriptPayload.tone) : '';
+      setStatus('Done' + toneLabel + lang + dur, 'ready');
       recordBtn.disabled = false;
       stopBtn.disabled = true;
       enhanceBtn.disabled = !finalText;
@@ -968,7 +1085,7 @@ function stopRecording() {
 }
 
 async function enhanceText() {
-  const text = transcription.value.trim();
+  const text = (currentRawTranscript || transcription.value || '').trim();
   if (!text) return;
   enhanceBtn.disabled = true;
   setStatus('Enhancing...', 'busy');
@@ -1067,11 +1184,12 @@ silenceSlider.addEventListener('input', function onSlider() {
 });
 
 if (window.electronAPI && window.electronAPI.onInjectText) {
-  window.electronAPI.onInjectText(text => {
-    transcription.value = text;
+  window.electronAPI.onInjectText(payload => {
+    const transcriptPayload = updateToneUI(payload);
+    transcription.value = transcriptPayload.text || '';
     enhanced.value = '';
     setLiveMode(false);
-    enhanceBtn.disabled = !text;
+    enhanceBtn.disabled = !transcriptPayload.text;
     setStatus('Previewing before paste...', 'ready');
     setPreviewAction('paste');
   });
@@ -1085,13 +1203,15 @@ if (window.electronAPI && window.electronAPI.onWindowModeState) {
 
 if (window.electronAPI && window.electronAPI.onLiveText) {
   window.electronAPI.onLiveText(payload => {
-    if (!payload || !payload.text) return;
-    transcription.value = payload.text;
+    const transcriptPayload = updateToneUI(payload);
+    if (!transcriptPayload.text) return;
+    transcription.value = transcriptPayload.text;
     enhanced.value = '';
-    enhanceBtn.disabled = !payload.text.trim();
-    setLiveMode(!!payload.partial);
-    setStatus(payload.partial ? 'Live preview before paste' : 'Preview ready', payload.partial ? 'busy' : 'ready');
-    if (!payload.partial) {
+    enhanceBtn.disabled = !transcriptPayload.text.trim();
+    setLiveMode(!!transcriptPayload.partial);
+    const toneLabel = transcriptPayload.tone ? ' · ' + formatToneLabel(transcriptPayload.tone) : '';
+    setStatus((transcriptPayload.partial ? 'Live preview before paste' : 'Preview ready') + toneLabel, transcriptPayload.partial ? 'busy' : 'ready');
+    if (!transcriptPayload.partial) {
       setPreviewAction('paste');
     }
   });

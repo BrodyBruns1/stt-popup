@@ -343,6 +343,36 @@ function setState(state, text) {
   lbl.textContent = text;
 }
 
+function formatToneLabel(tone) {
+  if (!tone || !tone.label) return '';
+  return tone.label.charAt(0).toUpperCase() + tone.label.slice(1);
+}
+
+function buildTranscriptPayload(payload, partial) {
+  if (payload && typeof payload === 'object') {
+    const rawText = String(payload.text || '').trim();
+    const expressiveText = String(payload.expressive_text || rawText).trim();
+    return {
+      text: expressiveText || rawText,
+      raw_text: rawText || expressiveText,
+      expressive_text: expressiveText || rawText,
+      tone: payload.tone || null,
+      partial: !!partial,
+      language: payload.language || activeLanguage,
+    };
+  }
+
+  const text = String(payload || '').trim();
+  return {
+    text,
+    raw_text: text,
+    expressive_text: text,
+    tone: null,
+    partial: !!partial,
+    language: activeLanguage,
+  };
+}
+
 function floatTo16BitPCM(float32Array) {
   const buffer = new ArrayBuffer(float32Array.length * 2);
   const view = new DataView(buffer);
@@ -496,8 +526,12 @@ async function ensureAudioPipeline() {
   return true;
 }
 
-function finishWithText(text, finalLanguage) {
-  const finalText = (text || liveDraft || '').trim();
+function finishWithText(payload, finalLanguage) {
+  const transcript = buildTranscriptPayload(payload, false);
+  if (finalLanguage && !transcript.language) {
+    transcript.language = finalLanguage;
+  }
+  const finalText = (transcript.text || liveDraft || '').trim();
   clearFinalizeStopTimer();
   clearAudioPipeline();
   if (!finalText) {
@@ -512,12 +546,8 @@ function finishWithText(text, finalLanguage) {
   }
 
   setState('done', 'Injected ✓');
-  window.indicatorAPI.transcriptionLive({
-    text: finalText,
-    partial: false,
-    language: finalLanguage || activeLanguage,
-  });
-  window.indicatorAPI.transcriptionReady(finalText);
+  window.indicatorAPI.transcriptionLive(transcript);
+  window.indicatorAPI.transcriptionReady(transcript);
   setTimeout(() => {
     if (wakeModeEnabled) {
       setState('wake', wakePromptText());
@@ -648,20 +678,22 @@ async function startRecording(fromWake) {
   ws.addEventListener('message', event => {
     const payload = JSON.parse(event.data);
     if (payload.type === 'partial') {
-      liveDraft = payload.text || liveDraft;
-      activeLanguage = payload.language || activeLanguage;
+      const transcript = buildTranscriptPayload(payload, true);
+      liveDraft = transcript.text || liveDraft;
+      activeLanguage = transcript.language || activeLanguage;
       const words = liveDraft ? liveDraft.trim().split(/\s+/).length : 0;
-      setState('recording', words > 0 ? 'Live ' + words + 'w' : 'Recording');
-      window.indicatorAPI.transcriptionLive({
-        text: liveDraft,
-        partial: true,
-        language: activeLanguage,
-      });
+      const toneLabel = formatToneLabel(transcript.tone);
+      if (toneLabel && words > 0) {
+        setState('recording', toneLabel + ' · ' + words + 'w');
+      } else {
+        setState('recording', words > 0 ? 'Live ' + words + 'w' : 'Recording');
+      }
+      window.indicatorAPI.transcriptionLive(transcript);
       return;
     }
 
     if (payload.type === 'final') {
-      finishWithText(payload.text, payload.language);
+      finishWithText(payload, payload.language);
       if (ws) ws.close();
       return;
     }

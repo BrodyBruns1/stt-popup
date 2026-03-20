@@ -215,6 +215,26 @@ function clearPendingQuickPaste() {
   pendingQuickPasteText = '';
 }
 
+function normalizeTranscriptPayload(payload) {
+  if (payload && typeof payload === 'object') {
+    const rawText = String(payload.raw_text || payload.rawText || payload.text || '').trim();
+    const expressiveText = String(payload.expressive_text || payload.expressiveText || payload.text || '').trim();
+    return {
+      ...payload,
+      text: expressiveText || rawText,
+      raw_text: rawText || expressiveText,
+      expressive_text: expressiveText || rawText,
+    };
+  }
+
+  const text = String(payload || '').trim();
+  return {
+    text,
+    raw_text: text,
+    expressive_text: text,
+  };
+}
+
 function finishQuickPreview({ pasteNow = false } = {}) {
   const text = pendingQuickPasteText;
   clearPendingQuickPaste();
@@ -296,22 +316,24 @@ app.whenReady().then(() => {
 });
 
 // ── IPC from indicator: transcription finished ────────────────────────────────
-ipcMain.on('transcription-ready', (_, text) => {
+ipcMain.on('transcription-ready', (_, payload) => {
   isRecording = false;
   clearPendingQuickPaste();
   showFullWindowAttached({ focus: false, mode: 'compact' });
   sendQuickSessionState('preview');
-  if (fullWin) fullWin.webContents.send('inject-text', text);
-  pendingQuickPasteText = text;
+  const transcript = normalizeTranscriptPayload(payload);
+  if (fullWin) fullWin.webContents.send('inject-text', transcript);
+  pendingQuickPasteText = transcript.text;
   pendingQuickPasteTimer = setTimeout(() => finishQuickPreview({ pasteNow: true }), QUICK_PASTE_DELAY_MS);
 });
 
 ipcMain.on('transcription-live', (_, payload) => {
+  const transcript = normalizeTranscriptPayload(payload);
   if (payload && payload.partial) {
     showFullWindowAttached({ focus: false, mode: 'compact' });
     sendQuickSessionState('recording');
   }
-  if (fullWin) fullWin.webContents.send('live-text', payload);
+  if (fullWin) fullWin.webContents.send('live-text', transcript);
 });
 
 ipcMain.on('wake-activated', () => {
