@@ -1,55 +1,91 @@
 # STT Popup
 
-Floating speech-to-text desktop widget for Windows/Linux. Records from your microphone, transcribes via Whisper on a local server, and injects the text directly at your cursor — no browser tab, no focus disruption.
+Floating speech-to-text desktop widget for Windows. It records from the microphone, streams PCM audio to the `stt-widget` backend over WebSocket, shows live transcription before paste, and injects the final text at the cursor without stealing focus.
+
+Current tagged release: `v1.4.4`
+
+## Features
+
+- Non-focus-stealing pill indicator for quick dictation
+- Attached full transcript panel for live preview and final review
+- Live partial transcription while you are still speaking
+- Final full-pass cleanup when recording stops
+- Configurable wake phrase with always-listening wake mode
+- Optional `Press Enter After Paste`
+- Configurable silence timeout or fully manual stop mode
+- Ollama-powered text enhancement in the full window
+- Fast paste via `wscript.exe`
 
 ## Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| **Ctrl+Space** | Start/stop recording. Text injected at cursor when done. |
-| **Ctrl+Shift+Space** | Show/hide full window (AI enhancement via Ollama) |
+| `Ctrl+Space` | Start/stop quick recording |
+| `Ctrl+Shift+Space` | Show or hide the full transcript window |
 
-## Usage
+## Quick Start
 
-### Windows (pre-built)
+### Windows
 
-Download `STT-Popup-Windows.zip` from Releases, extract anywhere, run `STT Popup.exe`.
+Download `STT-Popup-Windows.zip`, extract it, and run `STT Popup.exe`.
 
 ### From source
 
-Requires Node.js v20 LTS (v23+ is not compatible with electron-builder dependencies).
+Requires Node.js 20 LTS.
 
 ```bash
 npm install
 npm start
 ```
 
-### Backend
+## Backend
 
-Requires the [stt-widget](https://github.com/BrodyBruns1/stt-widget) backend running and accessible. Update the `API` constant in `renderer/index.html` and `renderer/indicator.html` to match your server address.
+Requires the [stt-widget](https://github.com/BrodyBruns1/stt-widget) backend running and reachable.
 
-## How it works
+The popup uses:
+- `ws://<host>:8200/ws/transcribe` for live PCM streaming transcription
+- `http://<host>:8200/enhance` for Ollama cleanup
+- `http://<host>:8200/models` for model listing
 
-- A small non-focusable pill indicator sits in the top-right corner of your screen
-- **Ctrl+Space** triggers recording without stealing focus from your current window
-- Silence detection (configurable 1.8s–30s or manual) auto-stops recording
-- Audio is sent to the Whisper backend for transcription
-- Result is injected via clipboard paste using `wscript.exe` (~40ms overhead)
-- **Ctrl+Shift+Space** opens the full window with Ollama AI enhancement
+If your server address changes, update the API constants in `renderer/index.html` and `renderer/indicator.html`.
 
-## Silence timeout slider
+## Wake Mode
 
-The full window (Ctrl+Shift+Space) has a silence slider:
-- **Left** (1.8s) — stops after brief pause, best for short commands
-- **Right** (30s) — long pause tolerance for dictation
-- **Far right (∞)** — manual mode, press Ctrl+Space again to stop
+Wake mode can be enabled from Settings.
+
+- The wake phrase is editable and no longer hardcoded to `Hey Jenkins`
+- Matching is intentionally tolerant of pauses, extra words, and small recognition drift
+- After wake detection, the popup transitions into the normal quick-record flow
+- The preview window appears with live text before paste
+
+## Recording Behavior
+
+- Quick-record opens the attached preview panel automatically
+- Live partials appear while recording
+- On stop, the popup keeps a short tail grace before finalization to reduce clipped endings
+- Final text appears in the preview before paste
+- Paste can optionally be followed by `Enter`
+
+## Silence Timeout
+
+The full window includes a silence slider:
+
+- Left: about `1.8s`, best for short commands
+- Right: up to `30s`, better for longer dictation
+- Far right: `∞`, manual stop only
+
+## Packaging Notes
+
+Windows packaging is built from `electron-builder --win portable`.
+
+On Linux, `electron-builder` may stop at the usual `wine` signing step after `dist/win-unpacked` has already been produced. In that case, zip `dist/win-unpacked` to create the Windows distribution artifact.
 
 ## Files
 
-```
-main.js                  Main process — global shortcuts, windows, text injection
-preload.js               IPC bridge for full window
-preload-indicator.js     IPC bridge for indicator window
-renderer/index.html      Full popup (420×560px) with AI enhancement
-renderer/indicator.html  Floating pill indicator (164×44px)
+```text
+main.js                  Main process: shortcuts, preview state, paste flow, wake settings
+preload.js               IPC bridge for the full transcript window
+preload-indicator.js     IPC bridge for the floating indicator
+renderer/index.html      Full transcript window and settings UI
+renderer/indicator.html  Floating pill, live PCM capture, wake mode, streaming logic
 ```
