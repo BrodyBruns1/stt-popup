@@ -34,6 +34,8 @@ let customDictionaryText = '';
 const QUICK_PASTE_DELAY_MS = 650;
 let pendingQuickPasteTimer = null;
 let pendingQuickPasteText = '';
+const FULL_WINDOW_SIZE = { width: 420, height: 700 };
+const COMPACT_WINDOW_SIZE = { width: 360, height: 210 };
 
 function sanitizeWakePhrase(value) {
   const normalized = String(value || '')
@@ -93,8 +95,8 @@ function createIndicatorWindow() {
 // ── Full window (shown only via Ctrl+Shift+Space) ────────────────────────────
 function createFullWindow() {
   fullWin = new BrowserWindow({
-    width:  420,
-    height: 560,
+    width:  FULL_WINDOW_SIZE.width,
+    height: FULL_WINDOW_SIZE.height,
     show:        false,
     frame:       false,
     transparent: true,
@@ -112,6 +114,46 @@ function createFullWindow() {
   fullWin.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 }
 
+function setFullWindowMode(mode) {
+  if (!fullWin) return;
+  const size = mode === 'compact' ? COMPACT_WINDOW_SIZE : FULL_WINDOW_SIZE;
+  const [currentWidth, currentHeight] = fullWin.getSize();
+  if (currentWidth !== size.width || currentHeight !== size.height) {
+    fullWin.setSize(size.width, size.height, false);
+  }
+  fullWin.webContents.send('window-mode-state', { mode });
+}
+
+function pickAttachedPosition({ indicatorX, indicatorY, indicatorWidth, indicatorHeight, fullWidth, fullHeight, areaX, areaY, areaWidth, areaHeight }) {
+  const gap = 10;
+  const candidates = [
+    { mode: 'below', x: indicatorX + indicatorWidth - fullWidth, y: indicatorY + indicatorHeight + gap },
+    { mode: 'above', x: indicatorX + indicatorWidth - fullWidth, y: indicatorY - fullHeight - gap },
+    { mode: 'left', x: indicatorX - fullWidth - gap, y: indicatorY + Math.round((indicatorHeight - fullHeight) / 2) },
+    { mode: 'right', x: indicatorX + indicatorWidth + gap, y: indicatorY + Math.round((indicatorHeight - fullHeight) / 2) },
+  ];
+
+  const minX = areaX + 12;
+  const minY = areaY + 12;
+  const maxX = areaX + areaWidth - fullWidth - 12;
+  const maxY = areaY + areaHeight - fullHeight - 12;
+
+  const scored = candidates.map(candidate => {
+    const clampedX = Math.max(minX, Math.min(candidate.x, maxX));
+    const clampedY = Math.max(minY, Math.min(candidate.y, maxY));
+    const overflow = Math.abs(candidate.x - clampedX) + Math.abs(candidate.y - clampedY);
+    return {
+      ...candidate,
+      x: clampedX,
+      y: clampedY,
+      overflow,
+    };
+  });
+
+  scored.sort((a, b) => a.overflow - b.overflow);
+  return scored[0];
+}
+
 function positionFullWindowRelativeToIndicator() {
   if (!indicatorWin || !fullWin) return;
 
@@ -121,24 +163,25 @@ function positionFullWindowRelativeToIndicator() {
   const display = screen.getDisplayNearestPoint({ x: indicatorX, y: indicatorY });
   const { x: areaX, y: areaY, width: areaWidth, height: areaHeight } = display.workArea;
 
-  let targetX = indicatorX + indicatorWidth - fullWidth;
-  let targetY = indicatorY + indicatorHeight - 6;
+  const placement = pickAttachedPosition({
+    indicatorX,
+    indicatorY,
+    indicatorWidth,
+    indicatorHeight,
+    fullWidth,
+    fullHeight,
+    areaX,
+    areaY,
+    areaWidth,
+    areaHeight,
+  });
 
-  const maxX = areaX + areaWidth - fullWidth - 12;
-  const maxY = areaY + areaHeight - fullHeight - 12;
-
-  targetX = Math.max(areaX + 12, Math.min(targetX, maxX));
-
-  if (targetY > maxY) {
-    targetY = indicatorY - fullHeight + 6;
-  }
-  targetY = Math.max(areaY + 12, Math.min(targetY, maxY));
-
-  fullWin.setPosition(Math.round(targetX), Math.round(targetY), false);
+  fullWin.setPosition(Math.round(placement.x), Math.round(placement.y), false);
 }
 
-function showFullWindowAttached({ focus = false } = {}) {
+function showFullWindowAttached({ focus = false, mode = 'full' } = {}) {
   if (!fullWin) return;
+  setFullWindowMode(mode);
   positionFullWindowRelativeToIndicator();
 
   if (fullWin.isVisible()) {
@@ -214,7 +257,7 @@ app.whenReady().then(() => {
   const ok1 = globalShortcut.register('Control+Space', () => {
     if (!isRecording) {
       isRecording = true;
-      showFullWindowAttached({ focus: false });
+      showFullWindowAttached({ focus: false, mode: 'compact' });
       sendQuickSessionState('recording');
       indicatorWin.webContents.send('cmd-start');
     } else {
@@ -230,7 +273,7 @@ app.whenReady().then(() => {
     if (fullWin.isVisible()) {
       hideFullWindow();
     } else {
-      showFullWindowAttached({ focus: true });
+      showFullWindowAttached({ focus: true, mode: 'full' });
     }
   });
   if (!ok2) console.warn('Could not register Ctrl+Shift+Space');
@@ -241,13 +284,13 @@ app.whenReady().then(() => {
   tray.setToolTip('STT  |  Ctrl+Space = record & inject  |  Ctrl+Shift+Space = full window');
   tray.on('click', () => {
     if (fullWin.isVisible()) hideFullWindow();
-    else showFullWindowAttached({ focus: true });
+    else showFullWindowAttached({ focus: true, mode: 'full' });
   });
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Ctrl+Space          — Record & inject',   enabled: false },
     { label: 'Ctrl+Shift+Space  — Full window + AI',    enabled: false },
     { type: 'separator' },
-    { label: 'Show full window',  click: () => showFullWindowAttached({ focus: true }) },
+    { label: 'Show full window',  click: () => showFullWindowAttached({ focus: true, mode: 'full' }) },
     { label: 'Quit',              click: () => app.quit() },
   ]));
 });
@@ -256,7 +299,7 @@ app.whenReady().then(() => {
 ipcMain.on('transcription-ready', (_, text) => {
   isRecording = false;
   clearPendingQuickPaste();
-  showFullWindowAttached({ focus: false });
+  showFullWindowAttached({ focus: false, mode: 'compact' });
   sendQuickSessionState('preview');
   if (fullWin) fullWin.webContents.send('inject-text', text);
   pendingQuickPasteText = text;
@@ -265,14 +308,14 @@ ipcMain.on('transcription-ready', (_, text) => {
 
 ipcMain.on('transcription-live', (_, payload) => {
   if (payload && payload.partial) {
-    showFullWindowAttached({ focus: false });
+    showFullWindowAttached({ focus: false, mode: 'compact' });
     sendQuickSessionState('recording');
   }
   if (fullWin) fullWin.webContents.send('live-text', payload);
 });
 
 ipcMain.on('wake-activated', () => {
-  showFullWindowAttached({ focus: false });
+  showFullWindowAttached({ focus: false, mode: 'compact' });
   sendQuickSessionState('recording');
 });
 

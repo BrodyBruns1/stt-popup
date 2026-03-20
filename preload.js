@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onInjectText:  (cb)      => ipcRenderer.on('inject-text', (_, text) => cb(text)),
   onLiveText:    (cb)      => ipcRenderer.on('live-text', (_, payload) => cb(payload)),
   onQuickSessionState: (cb) => ipcRenderer.on('quick-session-state', (_, payload) => cb(payload)),
+  onWindowModeState: (cb) => ipcRenderer.on('window-mode-state', (_, payload) => cb(payload)),
   onWakeModeState: (cb)    => ipcRenderer.on('wake-mode-state', (_, payload) => cb(payload)),
   onWakePhraseState: (cb)  => ipcRenderer.on('wake-phrase-state', (_, payload) => cb(payload)),
   onCustomDictionaryState: (cb) => ipcRenderer.on('custom-dictionary-state', (_, payload) => cb(payload)),

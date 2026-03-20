@@ -9,7 +9,7 @@
 
   html, body {
     width: 420px;
-    height: 560px;
+    height: 700px;
     overflow: hidden;
     background: transparent;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -19,7 +19,7 @@
 
   .popup {
     width: 420px;
-    height: 560px;
+    height: 700px;
     background: rgba(15, 17, 30, 0.97);
     border: 1px solid rgba(124, 58, 237, 0.4);
     border-radius: 14px;
@@ -90,6 +90,52 @@
     gap: 10px;
     overflow: hidden;
   }
+  .popup.compact-mode {
+    width: 360px;
+    height: 210px;
+  }
+  .popup.compact-mode .titlebar {
+    height: 34px;
+    padding: 0 10px;
+  }
+  .popup.compact-mode .hint,
+  .popup.compact-mode #settingsBtn,
+  .popup.compact-mode .settings-panel,
+  .popup.compact-mode .copy-row,
+  .popup.compact-mode .bottom-row,
+  .popup.compact-mode #enhanced,
+  .popup.compact-mode label[for="enhanced"],
+  .popup.compact-mode #recordBtn,
+  .popup.compact-mode #stopBtn,
+  .popup.compact-mode .meter-wrap,
+  .popup.compact-mode .silence-row,
+  .popup.compact-mode #modelSelect,
+  .popup.compact-mode #enhanceBtn,
+  .popup.compact-mode #copyRaw,
+  .popup.compact-mode #copyEnh,
+  .popup.compact-mode #quitBtn {
+    display: none !important;
+  }
+  .popup.compact-mode .body {
+    padding: 10px;
+    gap: 8px;
+  }
+  .popup.compact-mode .fields {
+    gap: 6px;
+  }
+  .popup.compact-mode .field {
+    flex: 1;
+  }
+  .popup.compact-mode textarea {
+    font-size: 0.8rem;
+    min-height: 0;
+  }
+  .popup.compact-mode .status {
+    padding-top: 4px;
+  }
+  .popup.compact-mode .preview-btn.visible {
+    min-width: 84px;
+  }
 
   .settings-panel {
     background: rgba(13, 16, 24, 0.92);
@@ -108,10 +154,12 @@
   }
   .settings-inner {
     min-height: 0;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
     gap: 10px;
+    padding-right: 2px;
   }
   .toggle-field {
     display: flex;
@@ -564,6 +612,7 @@ const WS_API = 'ws://10.201.52.171:8200/ws/transcribe';
 
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsPanel = document.getElementById('settingsPanel');
+const popupEl = document.querySelector('.popup');
 const recordBtn = document.getElementById('recordBtn');
 const stopBtn = document.getElementById('stopBtn');
 const enhanceBtn = document.getElementById('enhanceBtn');
@@ -597,6 +646,7 @@ let quickPreviewStage = 'idle';
 let currentWakePhrase = 'Hey Jenkins';
 let currentCustomDictionaryText = '';
 let finalizeStopTimer = null;
+let currentWindowMode = 'full';
 
 function sanitizeWakePhrase(value) {
   const normalized = String(value || '')
@@ -652,6 +702,14 @@ function applySettingsOpen(open) {
   settingsOpen = !!open;
   settingsPanel.className = 'settings-panel' + (settingsOpen ? ' open' : '');
   localStorage.setItem('settingsOpen', settingsOpen ? '1' : '0');
+}
+
+function applyWindowMode(mode) {
+  currentWindowMode = mode === 'compact' ? 'compact' : 'full';
+  popupEl.classList.toggle('compact-mode', currentWindowMode === 'compact');
+  if (currentWindowMode === 'compact') {
+    applySettingsOpen(false);
+  }
 }
 
 function setPreviewAction(mode) {
@@ -1016,6 +1074,12 @@ if (window.electronAPI && window.electronAPI.onInjectText) {
     enhanceBtn.disabled = !text;
     setStatus('Previewing before paste...', 'ready');
     setPreviewAction('paste');
+  });
+}
+
+if (window.electronAPI && window.electronAPI.onWindowModeState) {
+  window.electronAPI.onWindowModeState(payload => {
+    applyWindowMode(payload && payload.mode);
   });
 }
 

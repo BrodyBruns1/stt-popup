@@ -8,6 +8,7 @@ Current tagged release: `v1.4.4`
 
 - Non-focus-stealing pill indicator for quick dictation
 - Attached full transcript panel for live preview and final review
+- Compact quick-preview panel that docks itself around the pill
 - Live partial transcription while you are still speaking
 - Final full-pass cleanup when recording stops
 - Configurable wake phrase with always-listening wake mode
@@ -81,6 +82,8 @@ Notes:
 ## Recording Behavior
 
 - Quick-record opens the attached preview panel automatically
+- The quick preview uses a minimal transcript panel instead of the full settings window
+- The compact panel docks above, below, left, or right of the pill based on available screen space
 - Live partials appear while recording
 - On stop, the popup keeps a short tail grace before finalization to reduce clipped endings
 - Final text appears in the preview before paste
