@@ -35,11 +35,10 @@ const QUICK_PASTE_DELAY_MS = 650;
 let pendingQuickPasteTimer = null;
 let pendingQuickPasteText = '';
 const FULL_WINDOW_SIZES = {
-  transcript: { width: 560, height: 780 },
-  lab: { width: 640, height: 920 },
-  config: { width: 520, height: 820 },
+  transcript: { width: 260, height: 220 },
 };
-const COMPACT_WINDOW_SIZE = { width: 360, height: 210 };
+const COMPACT_WINDOW_SIZE = { width: 260, height: 220 };
+const PANEL_OPEN_HEIGHT = 420;
 let fullWindowView = 'transcript';
 
 function sanitizeWakePhrase(value) {
@@ -117,7 +116,8 @@ function createIndicatorWindow() {
 
   indicatorWin.loadFile(path.join(__dirname, 'renderer', 'indicator.html'));
   // Highest always-on-top level so it shows over most windows
-  indicatorWin.setAlwaysOnTop(true, 'pop-up-menu');
+  indicatorWin.setAlwaysOnTop(true, 'screen-saver');
+  if (process.platform === 'darwin') indicatorWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 }
 
 // ── Full window (shown only via Ctrl+Shift+Space) ────────────────────────────
@@ -141,6 +141,7 @@ function createFullWindow() {
   });
 
   fullWin.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  if (process.platform === 'darwin') fullWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 }
 
 function setFullWindowMode(mode) {
@@ -289,6 +290,18 @@ function finishQuickPreview({ pasteNow = false } = {}) {
 function injectTextAtCursor(text) {
   const prev = clipboard.readText();
   clipboard.writeText(text);
+
+  if (process.platform === 'darwin') {
+    // macOS: osascript sends Cmd+V to frontmost app (requires Accessibility permission)
+    const appleScript = autoPressEnter
+      ? 'tell application "System Events" to keystroke "v" using command down\ntell application "System Events" to key code 36'
+      : 'tell application "System Events" to keystroke "v" using command down';
+    exec(`osascript -e '${appleScript}'`, () => {
+      setTimeout(() => clipboard.writeText(prev), 800);
+    });
+    return;
+  }
+
   ensurePasteHelpers();
   const scriptPath = autoPressEnter ? VBS_ENTER_PATH : VBS_PATH;
   // wscript sends Ctrl+V to whatever window currently has focus (we never stole it)
@@ -300,6 +313,12 @@ function injectTextAtCursor(text) {
 // ── App bootstrap ────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
   ensurePasteHelpers(); // write VBS helpers to temp dir on startup
+
+  // Request macOS microphone permission at launch (no-op on Windows/Linux)
+  if (process.platform === 'darwin' && require('electron').systemPreferences?.askForMediaAccess) {
+    setImmediate(() => require('electron').systemPreferences.askForMediaAccess('microphone'));
+  }
+
 
   // Auto-grant microphone permission so the non-focusable indicator can record
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => {
@@ -466,6 +485,13 @@ ipcMain.handle('open-tonality-lab-folder', async () => {
 
 // ── IPC from full window ──────────────────────────────────────────────────────
 ipcMain.on('hide-window', () => hideFullWindow());
+ipcMain.on('resize-popup', (_event, { panelOpen }) => {
+  if (!fullWin) return;
+  const { width } = FULL_WINDOW_SIZES.transcript;
+  const height = panelOpen ? PANEL_OPEN_HEIGHT : FULL_WINDOW_SIZES.transcript.height;
+  fullWin.setSize(width, height, false);
+  positionFullWindowRelativeToIndicator();
+});
 ipcMain.on('dismiss-preview', () => finishQuickPreview({ pasteNow: !!pendingQuickPasteText }));
 ipcMain.on('quit-app', () => app.quit());
 

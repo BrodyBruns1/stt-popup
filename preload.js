@@ -23,4 +23,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveTonalityClip: (payload) => ipcRenderer.invoke('save-tonality-clip', payload),
   openTonalityLabFolder: () => ipcRenderer.invoke('open-tonality-lab-folder'),
   setIndicatorDraggable: (v) => ipcRenderer.send('set-indicator-draggable', v),
+  resizePopup: (panelOpen) => ipcRenderer.send('resize-popup', { panelOpen }),
 });
