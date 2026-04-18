@@ -34,9 +34,15 @@ zip_path = dist_dir / "STT-Popup-Windows.zip"
 if not source_dir.exists():
     raise SystemExit("win-unpacked was not produced")
 
+install_bat = Path(r"/scripts/install.bat")
+
 with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
     for path in sorted(source_dir.rglob("*")):
         archive.write(path, path.relative_to(source_dir))
+    if install_bat.exists():
+        archive.write(install_bat, "install.bat")
+    else:
+        print(f"Warning: {install_bat} not found, skipping")
 PY
 
 mkdir -p "$ARTIFACTS_DIR"
